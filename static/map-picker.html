@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Вибір на мапі</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map { height:100%; margin:0; }
+    .btn { position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
+           background:#1976d2; color:#fff; border:none; padding:10px 16px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <button id="ok" class="btn">Підтвердити точку</button>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const tg = window.Telegram.WebApp; tg.expand();
+
+    const map = L.map('map').setView([50.4501, 30.5234], 12); 
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+
+    let marker = L.marker(map.getCenter(), {draggable:true}).addTo(map);
+    map.on('click', (e) => { marker.setLatLng(e.latlng); });
+
+    document.getElementById('ok').onclick = () => {
+      const {lat, lng} = marker.getLatLng();
+      tg.sendData(JSON.stringify({lat, lng}));
+      tg.close();
+    };
+  </script>
+</body>
+</html>
