@@ -179,6 +179,33 @@ body {
       opacity: 1;
     }
 
+    @media (max-width: 992px) {
+      h1 {
+        display: block;
+      }
+
+      h1 span {
+        justify-content: center;
+        margin-left: 0;
+      }
+    }
+
+    @media (max-width: 768px) {
+      h1 {
+        line-height: 32px;
+      }
+
+      h1 span {
+        font-size: 12px;
+      }
+
+      h1 span img {
+        width: 18px;
+        height: 18px;
+        margin-right: 4px;
+      }
+    }
+
     @media (min-width: 768px) {
       h1 {
         font-size: 3rem;
