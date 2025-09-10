@@ -25,10 +25,31 @@
   <meta name="twitter:description" content="Локальна оренда інструментів між людьми. Через Telegram. Без фейків.">
   <meta name="twitter:image" content="https://toolmate.site/assets/images/share.png">
   <link rel="canonical" href="https://toolmate.site/">
-
+  <link rel="stylesheet" href="/assets/styles/menu.css">
   <meta name="robots" content="index, follow">
 </head>
 <body>
+    <div class="nav">
+        <div class="nav__bar">
+        <input type="checkbox" id="nav-toggle" class="nav__toggle" />
+
+        <label for="nav-toggle" class="nav__burger" aria-label="Відкрити меню" role="button">
+            <span></span><span></span><span></span>
+        </label>
+
+        <nav class="nav__drawer" aria-label="Головне меню">
+            <label for="nav-toggle" class="nav__close" aria-label="Закрити меню">✕</label>
+            <ul class="nav__list">
+            <li><a class="nav__link" href="/">Головна</a></li>
+            <li><a class="nav__link" href="/rental-conditions">Правила Оренди</a></li>
+            <li><a class="nav__link" href="/community-rules">Правила Спіьноти</a></li>
+            <li><a class="nav__link" href="/privacy-policy">Політика Приватності</a></li>
+            </ul>
+        </nav>
+
+        <label for="nav-toggle" class="nav__overlay" aria-hidden="true"></label>
+        </div>
+    </div>
   <header>
     <h1>
         ПОЛІТИКА КОНФІДЕНЦІЙНОСТІ

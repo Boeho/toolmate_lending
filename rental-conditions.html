@@ -9,8 +9,30 @@
   <meta name="description" content="Toolmate — локальна оренда інструментів між людьми через Telegram. Публічний договір-оферта умов оренди." />
   <meta name="robots" content="index, follow">
   <link rel="stylesheet" href="/assets/styles/main.css">
+  <link rel="stylesheet" href="/assets/styles/menu.css">
 </head>
 <body>
+  <div class="nav">
+        <div class="nav__bar">
+        <input type="checkbox" id="nav-toggle" class="nav__toggle" />
+
+        <label for="nav-toggle" class="nav__burger" aria-label="Відкрити меню" role="button">
+            <span></span><span></span><span></span>
+        </label>
+
+        <nav class="nav__drawer" aria-label="Головне меню">
+            <label for="nav-toggle" class="nav__close" aria-label="Закрити меню">✕</label>
+            <ul class="nav__list">
+            <li><a class="nav__link" href="/">Головна</a></li>
+            <li><a class="nav__link" href="/rental-conditions">Правила Оренди</a></li>
+            <li><a class="nav__link" href="/community-rules">Правила Спіьноти</a></li>
+            <li><a class="nav__link" href="/privacy-policy">Політика Приватності</a></li>
+            </ul>
+        </nav>
+
+        <label for="nav-toggle" class="nav__overlay" aria-hidden="true"></label>
+        </div>
+    </div>
 <header>
   <h1>
     Умови оренди
