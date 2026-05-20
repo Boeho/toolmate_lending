@@ -8,7 +8,6 @@
   <style>
     html, body, #map { height:100%; margin:0; }
 
-    /* Топбар над мапою */
     .topbar {
       position: absolute; top: 12px; left: 0; right: 0;
       display: flex; justify-content: center; pointer-events: none; z-index: 5000;
@@ -46,7 +45,6 @@
     .sugg-item { padding: 10px 12px; cursor: pointer; font-size: 14px; }
     .sugg-item:hover { background: #f5f5f5; }
 
-    /* Безпековий попап */
     .overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.5);
       display: flex; align-items: center; justify-content: center; z-index: 6000;
@@ -66,7 +64,6 @@
   </style>
 </head>
 <body>
-  <!-- Топ-елементи поверх мапи -->
   <div class="topbar">
     <button class="search-btn" id="openSearch">🔎 Знайти населений пункт</button>
 
@@ -78,7 +75,6 @@
   </div>
   <div id="sugg" class="sugg" hidden></div>
 
-  <!-- Безпековий попап -->
   <div id="safetyOverlay" class="overlay">
     <div class="modal">
       <h3>Безпека локацій</h3>
@@ -96,14 +92,13 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // ----- Leaflet карта -----
+    // ----- Leaflet map -----
     const map = L.map('map').setView([50.4501, 30.5234], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
 
     let marker = L.marker(map.getCenter(), {draggable:true}).addTo(map);
     map.on('click', (e) => { marker.setLatLng(e.latlng); });
 
-    // Безпековий попап
     const overlay = document.getElementById('safetyOverlay');
     const okOverlay = document.getElementById('okOverlay');
     okOverlay.addEventListener('click', () => { overlay.hidden = true; });
@@ -117,7 +112,7 @@
       tg.close();
     });
 
-    // ====== Пошук населеного пункту ======
+    // ====== search district ======
     const openBtn  = document.getElementById('openSearch');
     const panel    = document.getElementById('searchPanel');
     const input    = document.getElementById('searchInput');
@@ -125,7 +120,6 @@
     const closeBtn = document.getElementById('searchClose');
     const suggBox  = document.getElementById('sugg');
 
-    // відкрити поле: ховаємо кнопку
     openBtn.addEventListener('click', () => {
       openBtn.hidden = true;
       panel.hidden = false;
@@ -133,7 +127,6 @@
       setTimeout(() => input.focus(), 0);
     });
 
-    // закрити поле: показуємо кнопку і прибираємо підказки
     function closePanel() {
       panel.hidden = true;
       openBtn.hidden = false;
@@ -143,7 +136,6 @@
     }
     closeBtn.addEventListener('click', closePanel);
 
-    // Enter — пошук; Escape — закрити панель
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -153,21 +145,17 @@
       }
     });
 
-    // Будь-яке редагування — підказки сховати.
-    // Якщо очищено (менше 2 символів) — теж ховаємо.
     input.addEventListener('input', () => {
       if (input.value.trim().length < 2) {
         suggBox.hidden = true;
         suggBox.innerHTML = '';
       } else {
-        // користувач редагує — не показуємо старі підказки
         suggBox.hidden = true;
       }
     });
 
     goBtn.addEventListener('click', doSearch);
 
-    // Клік поза панеллю – закриває підказки
     document.addEventListener('click', (e) => {
       if (!panel.contains(e.target) && e.target !== openBtn) {
         suggBox.hidden = true;
@@ -184,7 +172,7 @@
       openBtn.disabled = true; goBtn.disabled = true;
 
       try {
-        // Якщо потрібен пошук глобально — приберіть &countrycodes=ua
+        // if global search needed - remove &countrycodes=ua
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=uk&countrycodes=ua&q=${encodeURIComponent(q)}`;
         const res = await fetch(url, { headers: { 'Accept': 'application/json' }});
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -199,7 +187,7 @@
 
         renderSuggestions(items);
 
-        // Виставити перший результат
+        // show first result immediately
         const first = items[0];
         const lat = Number(first.lat), lng = Number(first.lon);
         setMarkerAndView(lat, lng, 13);
