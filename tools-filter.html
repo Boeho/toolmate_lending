@@ -128,16 +128,6 @@
     .num-input::-webkit-inner-spin-button,
     .num-input::-webkit-outer-spin-button { -webkit-appearance: none; }
     .num-input::placeholder { color: var(--hint); }
-    select.num-input {
-      -webkit-appearance: none;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 10px center;
-      background-color: var(--bg);
-      padding-right: 30px;
-      cursor: pointer;
-    }
 
     /* ── Toggle ── */
     .toggle-wrap {
@@ -198,21 +188,6 @@
 <body>
 
 <div class="header">🔧 Фільтри пошуку</div>
-
-<!-- Category + Subcategory -->
-<div class="section" id="catSection" style="display:none">
-  <div class="section-title">Категорія</div>
-  <div style="padding:10px 14px; display:flex; flex-direction:column; gap:10px;">
-    <div class="num-field">
-      <label>Категорія</label>
-      <select class="num-input" id="catSel" onchange="onCatChange()"></select>
-    </div>
-    <div class="num-field" id="subRow" style="display:none">
-      <label>Підкатегорія</label>
-      <select class="num-input" id="subSel"></select>
-    </div>
-  </div>
-</div>
 
 <!-- Radius -->
 <div class="section">
@@ -320,56 +295,6 @@
   const initDel     = qp.get('del') === '1';
   const initIns     = qp.get('ins') === '1';
   const initRating  = qf('rating') ?? 0;
-  const initCatId = qp.get('cat_id') || '';
-  const initSubId = qp.get('sub_id') || '';
-  const API_URL   = qp.get('api') || '';
-
-  const catSel     = document.getElementById('catSel');
-  const subSel     = document.getElementById('subSel');
-  const catSection = document.getElementById('catSection');
-  const subRow     = document.getElementById('subRow');
-
-  let _allSubs = [];
-
-  function _buildCatOptions(cats) {
-    catSel.innerHTML = '';
-    const any = document.createElement('option');
-    any.value = ''; any.textContent = '— будь-яка —';
-    catSel.appendChild(any);
-    cats.forEach(c => {
-      const o = document.createElement('option');
-      o.value = c.id; o.textContent = c.name;
-      catSel.appendChild(o);
-    });
-    catSel.value = initCatId;
-    populateSubs(initCatId, initSubId);
-    catSection.style.display = '';
-  }
-
-  function populateSubs(catId, selectedSubId) {
-    subSel.innerHTML = '';
-    const any = document.createElement('option');
-    any.value = ''; any.textContent = '— будь-яка —';
-    subSel.appendChild(any);
-    const filtered = _allSubs.filter(s => String(s.cid) === String(catId));
-    filtered.forEach(s => {
-      const o = document.createElement('option');
-      o.value = s.id; o.textContent = s.name;
-      subSel.appendChild(o);
-    });
-    subRow.style.display = filtered.length ? '' : 'none';
-    if (selectedSubId) subSel.value = selectedSubId;
-  }
-
-  function onCatChange() { populateSubs(catSel.value, ''); }
-
-  if (API_URL) {
-    fetch(API_URL)
-      .then(r => r.json())
-      .then(data => { _allSubs = data.subs || []; _buildCatOptions(data.cats || []); })
-      .catch(() => {});
-  }
-
   /* ── Apply to inputs ── */
   const radiusSlider = document.getElementById('radiusSlider');
   radiusSlider.value = Math.min(100, Math.max(1, initRadius));
@@ -412,7 +337,6 @@
   }
 
   function resetFilters() {
-    if (catSection.style.display !== 'none') { catSel.value = ''; populateSubs('', ''); }
     document.getElementById('phMin').value = '';
     document.getElementById('phMax').value = '';
     document.getElementById('pdMin').value = '';
@@ -428,12 +352,7 @@
     const radius = parseFloat(radiusSlider.value);
     const rating = parseFloat(ratingSlider.value);
 
-    const catId = catSel.value ? parseInt(catSel.value) : null;
-    const subId = (catId && subSel.value) ? parseInt(subSel.value) : null;
-
     const payload = {
-      category_id:      catId,
-      subcategory_id:   subId,
       radius_km:        radius >= 100 ? 200 : radius,
       price_hour_min:   numVal('phMin'),
       price_hour_max:   numVal('phMax'),
