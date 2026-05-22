@@ -12,6 +12,8 @@
       --hint:        var(--tg-theme-hint-color,           #999999);
       --accent:      var(--tg-theme-button-color,         #2481cc);
       --accent-text: var(--tg-theme-button-text-color,    #ffffff);
+      --booked-bg:   rgba(220, 60, 60, 0.13);
+      --booked-dot:  #d93030;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -33,12 +35,10 @@
     }
     .header h1 { font-size: 17px; font-weight: 600; }
     .mode-badge {
-      font-size: 12px;
-      font-weight: 500;
+      font-size: 12px; font-weight: 500;
       color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 12%, transparent);
-      padding: 3px 10px;
-      border-radius: 10px;
+      background: rgba(36, 129, 204, 0.12);
+      padding: 3px 10px; border-radius: 10px;
     }
 
     /* ── Step pills ── */
@@ -47,25 +47,19 @@
       margin: 0 16px 14px;
       background: var(--bg2);
       border-radius: 12px;
-      padding: 3px;
-      gap: 3px;
+      padding: 3px; gap: 3px;
     }
     .step-pill {
-      flex: 1;
-      padding: 8px 4px;
-      border-radius: 10px;
-      border: none;
-      background: transparent;
-      color: var(--hint);
-      font-size: 13px;
-      font-weight: 500;
+      flex: 1; padding: 8px 4px;
+      border-radius: 10px; border: none;
+      background: transparent; color: var(--hint);
+      font-size: 13px; font-weight: 500;
       cursor: pointer;
       transition: background .15s, color .15s;
       white-space: nowrap;
     }
     .step-pill.active {
-      background: var(--bg);
-      color: var(--text);
+      background: var(--bg); color: var(--text);
       box-shadow: 0 1px 4px rgba(0,0,0,.10);
     }
     .step-pill.done { color: var(--accent); }
@@ -74,19 +68,15 @@
     .cal-wrap { padding: 0 16px; }
 
     .month-nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 10px;
     }
     .nav-btn {
       width: 36px; height: 36px;
       display: flex; align-items: center; justify-content: center;
       background: none; border: none;
-      color: var(--accent);
-      font-size: 22px;
-      border-radius: 50%;
-      cursor: pointer;
+      color: var(--accent); font-size: 22px;
+      border-radius: 50%; cursor: pointer;
     }
     .nav-btn:active { background: var(--bg2); }
     .month-title { font-weight: 600; font-size: 15px; }
@@ -94,109 +84,123 @@
     .cal-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 3px;
-      text-align: center;
+      gap: 3px; text-align: center;
     }
     .cal-dow {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 11px; font-weight: 600;
       color: var(--hint);
       padding: 2px 0 7px;
       text-transform: uppercase;
     }
     .cal-cell {
       aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      border-radius: 50%;
-      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; border-radius: 50%;
+      cursor: pointer; position: relative;
       transition: background .12s;
       user-select: none;
     }
     .cal-cell:active { transform: scale(.88); }
-    .cal-cell.empty   { pointer-events: none; }
+    .cal-cell.empty    { pointer-events: none; }
     .cal-cell.disabled { color: var(--hint); pointer-events: none; }
-    .cal-cell.today   { font-weight: 700; color: var(--accent); }
+    .cal-cell.today    { font-weight: 700; color: var(--accent); }
+
+    /* selection */
     .cal-cell.sel-start,
     .cal-cell.sel-end {
       background: var(--accent);
       color: var(--accent-text);
       font-weight: 600;
     }
-    .cal-cell.in-range {
-      background: var(--bg2);
-      border-radius: 0;
-    }
+    .cal-cell.in-range   { background: var(--bg2); border-radius: 0; }
     .cal-cell.range-left  { border-radius: 50% 0 0 50%; }
     .cal-cell.range-right { border-radius: 0 50% 50% 0; }
     .cal-cell.sel-start.sel-end { border-radius: 50%; }
 
+    /* ── Booked days ── */
+    .cal-cell.booked {
+      background: var(--booked-bg);
+      color: var(--booked-dot);
+      pointer-events: none;   /* blocked — cannot be selected */
+      text-decoration: line-through;
+      opacity: .7;
+    }
+    /* booked dot for days that are only partially booked (selectable) */
+    .cal-cell.booked-hint::after {
+      content: '';
+      position: absolute;
+      bottom: 3px; left: 50%;
+      transform: translateX(-50%);
+      width: 4px; height: 4px;
+      background: var(--booked-dot);
+      border-radius: 50%;
+    }
+
+    /* ── Legend ── */
+    .legend {
+      display: flex; align-items: center; gap: 6px;
+      margin: 10px 16px 0;
+      font-size: 12px; color: var(--hint);
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--booked-bg);
+      border: 1px solid var(--booked-dot);
+      flex-shrink: 0;
+    }
+
     /* ── Time picker ── */
     .time-block {
-      margin: 14px 16px 0;
-      padding: 12px 14px;
-      background: var(--bg2);
-      border-radius: 12px;
+      margin: 14px 16px 0; padding: 12px 14px;
+      background: var(--bg2); border-radius: 12px;
     }
     .time-block label {
-      display: block;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--hint);
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: .4px;
+      display: block; font-size: 12px; font-weight: 500;
+      color: var(--hint); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: .4px;
     }
     .time-input {
-      width: 100%;
-      background: none;
-      border: none;
-      font-size: 24px;
-      font-weight: 500;
-      color: var(--text);
-      outline: none;
-      cursor: pointer;
-      font-family: inherit;
+      width: 100%; background: none; border: none;
+      font-size: 24px; font-weight: 500;
+      color: var(--text); outline: none;
+      cursor: pointer; font-family: inherit;
     }
-    /* remove spinner arrows on some browsers */
     .time-input::-webkit-calendar-picker-indicator { filter: invert(50%); cursor: pointer; }
 
     /* ── Summary card ── */
     .summary {
-      margin: 12px 16px 0;
-      padding: 12px 14px;
-      background: var(--bg2);
-      border-radius: 12px;
+      margin: 12px 16px 0; padding: 12px 14px;
+      background: var(--bg2); border-radius: 12px;
     }
     .sum-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
     }
     .sum-row + .sum-row {
-      margin-top: 8px;
-      padding-top: 8px;
+      margin-top: 8px; padding-top: 8px;
       border-top: 1px solid var(--bg);
     }
     .sum-lbl { font-size: 12px; color: var(--hint); font-weight: 500; text-transform: uppercase; letter-spacing: .4px; }
     .sum-val { font-size: 14px; font-weight: 500; }
     .sum-val.empty { color: var(--hint); font-weight: 400; font-style: italic; }
 
+    /* overlap warning row */
+    .overlap-warn {
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--bg);
+      font-size: 12px; color: var(--booked-dot);
+      display: none;
+    }
+    .overlap-warn.visible { display: block; }
+
     /* ── Confirm button ── */
     .confirm-btn {
       position: fixed;
       bottom: 16px; left: 16px; right: 16px;
-      background: var(--accent);
-      color: var(--accent-text);
-      border: none;
-      border-radius: 13px;
-      padding: 15px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity .2s;
+      background: var(--accent); color: var(--accent-text);
+      border: none; border-radius: 13px;
+      padding: 15px; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: opacity .2s;
       font-family: inherit;
     }
     .confirm-btn:disabled { opacity: .38; cursor: default; }
@@ -224,6 +228,11 @@
   <div class="cal-grid" id="calGrid"></div>
 </div>
 
+<div class="legend" id="legend" style="display:none">
+  <div class="legend-dot"></div>
+  <span>— заброньовано, недоступно</span>
+</div>
+
 <div class="time-block">
   <label id="timeLbl">⏰ Час початку (UTC)</label>
   <input type="time" class="time-input" id="timeInput" value="09:00" onchange="onTime()">
@@ -238,6 +247,9 @@
     <span class="sum-lbl">Кінець</span>
     <span class="sum-val empty" id="sumEnd">не вибрано</span>
   </div>
+  <div class="overlap-warn" id="overlapWarn">
+    ⚠️ Обраний період перетинається із заброньованим часом
+  </div>
 </div>
 
 <button class="confirm-btn" id="confirmBtn" disabled onclick="submit()">
@@ -251,20 +263,35 @@
 
   /* ── URL params ── */
   const qp     = new URLSearchParams(location.search);
-  const MODE    = qp.get('mode') || 'hour';   // 'hour' | 'day'
+  const MODE    = qp.get('mode') || 'hour';
   const TOOL_ID = qp.get('tool_id') || null;
 
   document.getElementById('modeBadge').textContent =
     MODE === 'day' ? 'Подобова' : 'Погодинна';
+
+  /* ── Booked periods (from bot, UTC) ── */
+  const BOOKED = (() => {
+    try {
+      const raw = qp.get('booked');
+      if (!raw) return [];
+      return JSON.parse(decodeURIComponent(raw)).map(b => ({
+        s: new Date(b.s + ':00Z'),
+        e: new Date(b.e + ':00Z'),
+      }));
+    } catch { return []; }
+  })();
+
+  if (BOOKED.length) document.getElementById('legend').style.display = 'flex';
 
   /* ── State ── */
   const TODAY = new Date(); TODAY.setHours(0,0,0,0);
   let calYear  = TODAY.getFullYear();
   let calMonth = TODAY.getMonth();
   let step      = 'start';
-  let startDate = null,  startTime = '09:00';
-  let endDate   = null,  endTime   = '18:00';
+  let startDate = null, startTime = '09:00';
+  let endDate   = null, endTime   = '18:00';
 
+  /* ── i18n ── */
   const MONTHS = [
     'Січень','Лютий','Березень','Квітень','Травень','Червень',
     'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень',
@@ -275,6 +302,22 @@
   ];
   const DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
 
+  /* ── Booking helpers ── */
+  function dayOverlapsBooking(d) {
+    // does any booking touch this calendar day?
+    const dayStart = new Date(d); dayStart.setHours(0,  0,  0,   0);
+    const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
+    return BOOKED.some(b => b.s < dayEnd && b.e > dayStart);
+  }
+
+  function rangeOverlapsBooking(sd, st, ed, et) {
+    if (!sd || !ed) return false;
+    const s = new Date(dateISO(sd, st) + 'Z');
+    const e = new Date(dateISO(ed, et) + 'Z');
+    return BOOKED.some(b => b.s < e && b.e > s);
+  }
+
+  /* ── Generic helpers ── */
   function sameDay(a, b) {
     return a && b &&
       a.getFullYear()===b.getFullYear() &&
@@ -299,7 +342,7 @@
     return a < b;
   }
 
-  function inRange(d) {
+  function inSelRange(d) {
     if (!startDate || !endDate) return false;
     const x = new Date(d); x.setHours(12);
     const s = new Date(startDate); s.setHours(0);
@@ -323,7 +366,7 @@
     });
 
     const firstDow = new Date(calYear, calMonth, 1).getDay();
-    const offset   = (firstDow + 6) % 7; // Mon-first offset
+    const offset   = (firstDow + 6) % 7;
     const days     = new Date(calYear, calMonth+1, 0).getDate();
 
     for (let i = 0; i < offset; i++) {
@@ -338,15 +381,19 @@
       el.className = 'cal-cell';
       el.textContent = day;
 
-      const past    = isBefore(d, TODAY);
-      const tooEarly = step === 'end' && startDate && isBefore(d, startDate);
+      const past      = isBefore(d, TODAY);
+      const tooEarly  = step === 'end' && startDate && isBefore(d, startDate);
+      const isBooked  = dayOverlapsBooking(d);
 
       if (past || tooEarly) {
         el.classList.add('disabled');
+      } else if (isBooked) {
+        // blocked: visually crossed-out, not selectable
+        el.classList.add('booked');
       } else {
         const isSelS = sameDay(d, startDate);
         const isSelE = sameDay(d, endDate);
-        const isRng  = inRange(d);
+        const isRng  = inSelRange(d);
         const isTod  = sameDay(d, TODAY);
 
         if (isSelS && isSelE) {
@@ -374,7 +421,7 @@
   function pickDay(d) {
     if (step === 'start') {
       startDate = new Date(d);
-      // auto-advance to end step after visual feedback
+      endDate = null; // reset end when start changes
       setTimeout(() => goStep('end'), 180);
     } else {
       endDate = new Date(d);
@@ -422,26 +469,23 @@
   function renderSummary() {
     const ss = document.getElementById('sumStart');
     const se = document.getElementById('sumEnd');
-    if (startDate) {
-      ss.textContent  = fmtDisplay(startDate, startTime);
-      ss.className    = 'sum-val';
-    } else {
-      ss.textContent  = 'не вибрано';
-      ss.className    = 'sum-val empty';
-    }
-    if (endDate) {
-      se.textContent  = fmtDisplay(endDate, endTime);
-      se.className    = 'sum-val';
-    } else {
-      se.textContent  = 'не вибрано';
-      se.className    = 'sum-val empty';
-    }
+    const ow = document.getElementById('overlapWarn');
+
+    ss.textContent = startDate ? fmtDisplay(startDate, startTime) : 'не вибрано';
+    ss.className   = 'sum-val' + (startDate ? '' : ' empty');
+
+    se.textContent = endDate ? fmtDisplay(endDate, endTime) : 'не вибрано';
+    se.className   = 'sum-val' + (endDate ? '' : ' empty');
+
+    const hasOverlap = BOOKED.length > 0 &&
+      rangeOverlapsBooking(startDate, startTime, endDate, endTime);
+    ow.className = 'overlap-warn' + (hasOverlap ? ' visible' : '');
   }
 
   function isValid() {
     if (!startDate || !endDate) return false;
-    const s = new Date(dateISO(startDate, startTime));
-    const e = new Date(dateISO(endDate,   endTime));
+    const s = new Date(dateISO(startDate, startTime) + 'Z');
+    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
     return s > new Date() && e > s;
   }
 
@@ -473,7 +517,6 @@
     if (tg) {
       tg.sendData(JSON.stringify(payload));
     } else {
-      // browser preview
       alert('Payload:\n' + JSON.stringify(payload, null, 2));
     }
   }
