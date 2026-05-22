@@ -320,38 +320,38 @@
   const initDel     = qp.get('del') === '1';
   const initIns     = qp.get('ins') === '1';
   const initRating  = qf('rating') ?? 0;
-  const initCatId   = qp.get('cat_id') || '';
-  const initSubId   = qp.get('sub_id') || '';
+  const initCatId = qp.get('cat_id') || '';
+  const initSubId = qp.get('sub_id') || '';
+  const API_URL   = qp.get('api') || '';
 
-  /* ── Categories / subcategories ── */
-  const CATS = (() => { try { return JSON.parse(qp.get('cats') || '[]'); } catch { return []; } })();
-  const SUBS = (() => { try { return JSON.parse(qp.get('subs') || '[]'); } catch { return []; } })();
-
-  const catSel = document.getElementById('catSel');
-  const subSel = document.getElementById('subSel');
+  const catSel     = document.getElementById('catSel');
+  const subSel     = document.getElementById('subSel');
   const catSection = document.getElementById('catSection');
-  const subRow = document.getElementById('subRow');
+  const subRow     = document.getElementById('subRow');
 
-  if (CATS.length) {
-    catSection.style.display = '';
-    const anyOpt = document.createElement('option');
-    anyOpt.value = ''; anyOpt.textContent = '— будь-яка —';
-    catSel.appendChild(anyOpt);
-    CATS.forEach(c => {
+  let _allSubs = [];
+
+  function _buildCatOptions(cats) {
+    catSel.innerHTML = '';
+    const any = document.createElement('option');
+    any.value = ''; any.textContent = '— будь-яка —';
+    catSel.appendChild(any);
+    cats.forEach(c => {
       const o = document.createElement('option');
       o.value = c.id; o.textContent = c.name;
       catSel.appendChild(o);
     });
     catSel.value = initCatId;
     populateSubs(initCatId, initSubId);
+    catSection.style.display = '';
   }
 
   function populateSubs(catId, selectedSubId) {
     subSel.innerHTML = '';
-    const anyOpt = document.createElement('option');
-    anyOpt.value = ''; anyOpt.textContent = '— будь-яка —';
-    subSel.appendChild(anyOpt);
-    const filtered = SUBS.filter(s => String(s.cid) === String(catId));
+    const any = document.createElement('option');
+    any.value = ''; any.textContent = '— будь-яка —';
+    subSel.appendChild(any);
+    const filtered = _allSubs.filter(s => String(s.cid) === String(catId));
     filtered.forEach(s => {
       const o = document.createElement('option');
       o.value = s.id; o.textContent = s.name;
@@ -361,8 +361,13 @@
     if (selectedSubId) subSel.value = selectedSubId;
   }
 
-  function onCatChange() {
-    populateSubs(catSel.value, '');
+  function onCatChange() { populateSubs(catSel.value, ''); }
+
+  if (API_URL) {
+    fetch(API_URL)
+      .then(r => r.json())
+      .then(data => { _allSubs = data.subs || []; _buildCatOptions(data.cats || []); })
+      .catch(() => {});
   }
 
   /* ── Apply to inputs ── */
@@ -407,7 +412,7 @@
   }
 
   function resetFilters() {
-    if (CATS.length) { catSel.value = ''; populateSubs('', ''); }
+    if (catSection.style.display !== 'none') { catSel.value = ''; populateSubs('', ''); }
     document.getElementById('phMin').value = '';
     document.getElementById('phMax').value = '';
     document.getElementById('pdMin').value = '';
