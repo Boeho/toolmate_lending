@@ -184,6 +184,18 @@
     .sum-val { font-size: 14px; font-weight: 500; }
     .sum-val.empty { color: var(--hint); font-weight: 400; font-style: italic; }
 
+    /* price row */
+    .sum-price-row { display: none; }
+    .sum-price-row.visible { display: flex; }
+    .sum-price {
+      font-size: 15px; font-weight: 700;
+      color: var(--accent);
+    }
+    .sum-price-detail {
+      font-size: 12px; color: var(--hint);
+      margin-top: 1px;
+    }
+
     /* overlap warning row */
     .overlap-warn {
       margin-top: 8px; padding-top: 8px;
@@ -247,6 +259,13 @@
     <span class="sum-lbl">Кінець</span>
     <span class="sum-val empty" id="sumEnd">не вибрано</span>
   </div>
+  <div class="sum-row sum-price-row" id="priceRow">
+    <div>
+      <span class="sum-lbl">Орієнтовна вартість</span>
+      <div class="sum-price-detail" id="priceDetail"></div>
+    </div>
+    <span class="sum-price" id="sumPrice"></span>
+  </div>
   <div class="overlap-warn" id="overlapWarn">
     ⚠️ Обраний період перетинається із заброньованим часом
   </div>
@@ -262,9 +281,11 @@
   if (tg) { tg.expand(); tg.ready(); }
 
   /* ── URL params ── */
-  const qp     = new URLSearchParams(location.search);
-  const MODE    = qp.get('mode') || 'hour';
-  const TOOL_ID = qp.get('tool_id') || null;
+  const qp        = new URLSearchParams(location.search);
+  const MODE      = qp.get('mode') || 'hour';
+  const TOOL_ID   = qp.get('tool_id') || null;
+  const PRICE_H   = qp.get('ph')  !== null ? parseFloat(qp.get('ph'))  : null;
+  const PRICE_D   = qp.get('pd')  !== null ? parseFloat(qp.get('pd'))  : null;
 
   document.getElementById('modeBadge').textContent =
     MODE === 'day' ? 'Подобова' : 'Погодинна';
@@ -480,6 +501,36 @@
     const hasOverlap = BOOKED.length > 0 &&
       rangeOverlapsBooking(startDate, startTime, endDate, endTime);
     ow.className = 'overlap-warn' + (hasOverlap ? ' visible' : '');
+
+    const price = calcPrice();
+    const priceRow = document.getElementById('priceRow');
+    if (price) {
+      document.getElementById('sumPrice').textContent =
+        `${price.total.toFixed(2)}₴`;
+      document.getElementById('priceDetail').textContent =
+        `${price.units} ${price.label} × ${price.rate.toFixed(2)}₴`;
+      priceRow.className = 'sum-row sum-price-row visible';
+    } else {
+      priceRow.className = 'sum-row sum-price-row';
+    }
+  }
+
+  /* ── Price calculation ── */
+  function calcPrice() {
+    if (!startDate || !endDate) return null;
+    const s = new Date(dateISO(startDate, startTime) + 'Z');
+    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
+    if (e <= s) return null;
+    const diffMs = e - s;
+    if (MODE === 'hour' && PRICE_H !== null) {
+      const units = Math.max(1, Math.ceil(diffMs / 3_600_000));
+      return { total: Math.round(PRICE_H * units * 100) / 100, units, label: 'год', rate: PRICE_H };
+    }
+    if (MODE === 'day' && PRICE_D !== null) {
+      const units = Math.max(1, Math.ceil(diffMs / 86_400_000));
+      return { total: Math.round(PRICE_D * units * 100) / 100, units, label: 'дн', rate: PRICE_D };
+    }
+    return null;
   }
 
   function isValid() {
