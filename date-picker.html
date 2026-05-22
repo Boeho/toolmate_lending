@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Вибір дат оренди</title>
+  <style>
+    :root {
+      --bg:          var(--tg-theme-bg-color,            #ffffff);
+      --bg2:         var(--tg-theme-secondary-bg-color,  #f1f1f1);
+      --text:        var(--tg-theme-text-color,           #000000);
+      --hint:        var(--tg-theme-hint-color,           #999999);
+      --accent:      var(--tg-theme-button-color,         #2481cc);
+      --accent-text: var(--tg-theme-button-text-color,    #ffffff);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      padding-bottom: 88px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 16px 10px;
+    }
+    .header h1 { font-size: 17px; font-weight: 600; }
+    .mode-badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      padding: 3px 10px;
+      border-radius: 10px;
+    }
+
+    /* ── Step pills ── */
+    .steps {
+      display: flex;
+      margin: 0 16px 14px;
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .step-pill {
+      flex: 1;
+      padding: 8px 4px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: var(--hint);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+    }
+    .step-pill.active {
+      background: var(--bg);
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.10);
+    }
+    .step-pill.done { color: var(--accent); }
+
+    /* ── Calendar ── */
+    .cal-wrap { padding: 0 16px; }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .nav-btn {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: none;
+      color: var(--accent);
+      font-size: 22px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .nav-btn:active { background: var(--bg2); }
+    .month-title { font-weight: 600; font-size: 15px; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+      text-align: center;
+    }
+    .cal-dow {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--hint);
+      padding: 2px 0 7px;
+      text-transform: uppercase;
+    }
+    .cal-cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background .12s;
+      user-select: none;
+    }
+    .cal-cell:active { transform: scale(.88); }
+    .cal-cell.empty   { pointer-events: none; }
+    .cal-cell.disabled { color: var(--hint); pointer-events: none; }
+    .cal-cell.today   { font-weight: 700; color: var(--accent); }
+    .cal-cell.sel-start,
+    .cal-cell.sel-end {
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+    .cal-cell.in-range {
+      background: var(--bg2);
+      border-radius: 0;
+    }
+    .cal-cell.range-left  { border-radius: 50% 0 0 50%; }
+    .cal-cell.range-right { border-radius: 0 50% 50% 0; }
+    .cal-cell.sel-start.sel-end { border-radius: 50%; }
+
+    /* ── Time picker ── */
+    .time-block {
+      margin: 14px 16px 0;
+      padding: 12px 14px;
+      background: var(--bg2);
+      border-radius: 12px;
+    }
+    .time-block label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--hint);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .time-input {
+      width: 100%;
+      background: none;
+      border: none;
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--text);
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    /* remove spinner arrows on some browsers */
+    .time-input::-webkit-calendar-picker-indicator { filter: invert(50%); cursor: pointer; }
+
+    /* ── Summary card ── */
+    .summary {
+      margin: 12px 16px 0;
+      padding: 12px 14px;
+      background: var(--bg2);
+      border-radius: 12px;
+    }
+    .sum-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sum-row + .sum-row {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--bg);
+    }
+    .sum-lbl { font-size: 12px; color: var(--hint); font-weight: 500; text-transform: uppercase; letter-spacing: .4px; }
+    .sum-val { font-size: 14px; font-weight: 500; }
+    .sum-val.empty { color: var(--hint); font-weight: 400; font-style: italic; }
+
+    /* ── Confirm button ── */
+    .confirm-btn {
+      position: fixed;
+      bottom: 16px; left: 16px; right: 16px;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 13px;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+      font-family: inherit;
+    }
+    .confirm-btn:disabled { opacity: .38; cursor: default; }
+    .confirm-btn:not(:disabled):active { opacity: .82; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📅 Вибір дат</h1>
+  <span class="mode-badge" id="modeBadge">–</span>
+</div>
+
+<div class="steps">
+  <button class="step-pill active" id="pillStart" onclick="goStep('start')">📌 Початок</button>
+  <button class="step-pill"        id="pillEnd"   onclick="goStep('end')">🏁 Кінець</button>
+</div>
+
+<div class="cal-wrap">
+  <div class="month-nav">
+    <button class="nav-btn" onclick="shiftMonth(-1)">‹</button>
+    <span class="month-title" id="monthTitle"></span>
+    <button class="nav-btn" onclick="shiftMonth(+1)">›</button>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<div class="time-block">
+  <label id="timeLbl">⏰ Час початку (UTC)</label>
+  <input type="time" class="time-input" id="timeInput" value="09:00" onchange="onTime()">
+</div>
+
+<div class="summary">
+  <div class="sum-row">
+    <span class="sum-lbl">Початок</span>
+    <span class="sum-val empty" id="sumStart">не вибрано</span>
+  </div>
+  <div class="sum-row">
+    <span class="sum-lbl">Кінець</span>
+    <span class="sum-val empty" id="sumEnd">не вибрано</span>
+  </div>
+</div>
+
+<button class="confirm-btn" id="confirmBtn" disabled onclick="submit()">
+  Оберіть дату початку
+</button>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.expand(); tg.ready(); }
+
+  /* ── URL params ── */
+  const qp     = new URLSearchParams(location.search);
+  const MODE    = qp.get('mode') || 'hour';   // 'hour' | 'day'
+  const TOOL_ID = qp.get('tool_id') || null;
+
+  document.getElementById('modeBadge').textContent =
+    MODE === 'day' ? 'Подобова' : 'Погодинна';
+
+  /* ── State ── */
+  const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+  let calYear  = TODAY.getFullYear();
+  let calMonth = TODAY.getMonth();
+  let step      = 'start';
+  let startDate = null,  startTime = '09:00';
+  let endDate   = null,  endTime   = '18:00';
+
+  const MONTHS = [
+    'Січень','Лютий','Березень','Квітень','Травень','Червень',
+    'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень',
+  ];
+  const MONTHS_GEN = [
+    'Січ','Лют','Бер','Квіт','Трав','Черв',
+    'Лип','Серп','Вер','Жовт','Лист','Груд',
+  ];
+  const DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+
+  function sameDay(a, b) {
+    return a && b &&
+      a.getFullYear()===b.getFullYear() &&
+      a.getMonth()===b.getMonth() &&
+      a.getDate()===b.getDate();
+  }
+
+  function dateISO(d, t) {
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    return `${d.getFullYear()}-${mm}-${dd}T${t}`;
+  }
+
+  function fmtDisplay(d, t) {
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${dd} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${t} UTC`;
+  }
+
+  function isBefore(d, ref) {
+    const a = new Date(d); a.setHours(0,0,0,0);
+    const b = new Date(ref); b.setHours(0,0,0,0);
+    return a < b;
+  }
+
+  function inRange(d) {
+    if (!startDate || !endDate) return false;
+    const x = new Date(d); x.setHours(12);
+    const s = new Date(startDate); s.setHours(0);
+    const e = new Date(endDate); e.setHours(23);
+    return x > s && x < e;
+  }
+
+  /* ── Render calendar ── */
+  function renderCal() {
+    document.getElementById('monthTitle').textContent =
+      `${MONTHS[calMonth]} ${calYear}`;
+
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    DOW.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'cal-dow';
+      el.textContent = d;
+      grid.appendChild(el);
+    });
+
+    const firstDow = new Date(calYear, calMonth, 1).getDay();
+    const offset   = (firstDow + 6) % 7; // Mon-first offset
+    const days     = new Date(calYear, calMonth+1, 0).getDate();
+
+    for (let i = 0; i < offset; i++) {
+      const el = document.createElement('div');
+      el.className = 'cal-cell empty';
+      grid.appendChild(el);
+    }
+
+    for (let day = 1; day <= days; day++) {
+      const d  = new Date(calYear, calMonth, day);
+      const el = document.createElement('div');
+      el.className = 'cal-cell';
+      el.textContent = day;
+
+      const past    = isBefore(d, TODAY);
+      const tooEarly = step === 'end' && startDate && isBefore(d, startDate);
+
+      if (past || tooEarly) {
+        el.classList.add('disabled');
+      } else {
+        const isSelS = sameDay(d, startDate);
+        const isSelE = sameDay(d, endDate);
+        const isRng  = inRange(d);
+        const isTod  = sameDay(d, TODAY);
+
+        if (isSelS && isSelE) {
+          el.classList.add('sel-start', 'sel-end');
+        } else if (isSelS) {
+          el.classList.add('sel-start');
+          if (endDate) el.classList.add('range-left');
+        } else if (isSelE) {
+          el.classList.add('sel-end');
+          if (startDate) el.classList.add('range-right');
+        } else if (isRng) {
+          el.classList.add('in-range');
+        } else if (isTod) {
+          el.classList.add('today');
+        }
+
+        el.addEventListener('click', () => pickDay(d));
+      }
+
+      grid.appendChild(el);
+    }
+  }
+
+  /* ── Interactions ── */
+  function pickDay(d) {
+    if (step === 'start') {
+      startDate = new Date(d);
+      // auto-advance to end step after visual feedback
+      setTimeout(() => goStep('end'), 180);
+    } else {
+      endDate = new Date(d);
+    }
+    renderCal();
+    renderSummary();
+    updateBtn();
+  }
+
+  function goStep(s) {
+    step = s;
+    const ps = document.getElementById('pillStart');
+    const pe = document.getElementById('pillEnd');
+    ps.className = 'step-pill' + (s==='start' ? ' active' : startDate ? ' done' : '');
+    pe.className = 'step-pill' + (s==='end'   ? ' active' : endDate   ? ' done' : '');
+
+    const inp = document.getElementById('timeInput');
+    const lbl = document.getElementById('timeLbl');
+    if (s === 'start') {
+      inp.value = startTime;
+      lbl.textContent = '⏰ Час початку (UTC)';
+    } else {
+      inp.value = endTime;
+      lbl.textContent = '⏰ Час завершення (UTC)';
+    }
+
+    renderCal();
+  }
+
+  function shiftMonth(delta) {
+    calMonth += delta;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    if (calMonth <  0) { calMonth = 11; calYear--; }
+    renderCal();
+  }
+
+  function onTime() {
+    const v = document.getElementById('timeInput').value;
+    if (step === 'start') startTime = v;
+    else endTime = v;
+    renderSummary();
+    updateBtn();
+  }
+
+  function renderSummary() {
+    const ss = document.getElementById('sumStart');
+    const se = document.getElementById('sumEnd');
+    if (startDate) {
+      ss.textContent  = fmtDisplay(startDate, startTime);
+      ss.className    = 'sum-val';
+    } else {
+      ss.textContent  = 'не вибрано';
+      ss.className    = 'sum-val empty';
+    }
+    if (endDate) {
+      se.textContent  = fmtDisplay(endDate, endTime);
+      se.className    = 'sum-val';
+    } else {
+      se.textContent  = 'не вибрано';
+      se.className    = 'sum-val empty';
+    }
+  }
+
+  function isValid() {
+    if (!startDate || !endDate) return false;
+    const s = new Date(dateISO(startDate, startTime));
+    const e = new Date(dateISO(endDate,   endTime));
+    return s > new Date() && e > s;
+  }
+
+  function updateBtn() {
+    const btn = document.getElementById('confirmBtn');
+    if (!startDate) {
+      btn.textContent = 'Оберіть дату початку';
+      btn.disabled = true;
+    } else if (!endDate) {
+      btn.textContent = 'Оберіть дату завершення';
+      btn.disabled = true;
+    } else if (!isValid()) {
+      btn.textContent = 'Перевірте дати ⚠️';
+      btn.disabled = true;
+    } else {
+      btn.textContent = 'Підтвердити →';
+      btn.disabled = false;
+    }
+  }
+
+  function submit() {
+    if (!isValid()) return;
+    const payload = {
+      start_at: dateISO(startDate, startTime),
+      end_at:   dateISO(endDate,   endTime),
+      unit:     MODE,
+      tool_id:  TOOL_ID ? parseInt(TOOL_ID) : null,
+    };
+    if (tg) {
+      tg.sendData(JSON.stringify(payload));
+    } else {
+      // browser preview
+      alert('Payload:\n' + JSON.stringify(payload, null, 2));
+    }
+  }
+
+  /* ── Init ── */
+  goStep('start');
+  renderSummary();
+  updateBtn();
+</script>
+</body>
+</html>
