@@ -125,13 +125,13 @@
       text-decoration: line-through;
       opacity: .7;
     }
-    /* partially booked: same red/crossed look but remains clickable */
+    /* partially booked: clickable, no strikethrough — clearly selectable */
     .cal-cell.booked-hint {
-      background: var(--booked-bg);
-      color: var(--booked-dot);
-      text-decoration: line-through;
-      opacity: .7;
+      background: rgba(255, 160, 0, 0.13);
+      color: var(--text);
+      font-weight: 500;
     }
+    .cal-cell.booked-hint:active { background: rgba(255, 160, 0, 0.28); }
     /* blue accent dot = free slots still available */
     .cal-cell.booked-hint::after {
       content: '';
@@ -162,7 +162,7 @@
       border-radius: 50%;
       background: var(--accent);
       flex-shrink: 0;
-      border: 1.5px solid var(--booked-bg);
+      border: 1.5px solid rgba(255,160,0,0.13);
     }
 
     /* ── Time picker ── */
@@ -277,7 +277,7 @@
 </div>
 <div class="legend" id="legendPartial" style="display:none">
   <div class="legend-dot-partial"></div>
-  <span>— є вільні години (можна обрати)</span>
+  <span>— є вільні години, натисніть щоб обрати</span>
 </div>
 
 <div class="time-block">
@@ -317,16 +317,15 @@
   if (tg) { tg.expand(); tg.ready(); }
 
   /* ── URL params ── */
-  const qp        = new URLSearchParams(location.search);
-  const MODE      = qp.get('mode') || 'hour';
-  const TOOL_ID   = qp.get('tool_id') || null;
-  const PRICE_H   = (() => { const v = parseFloat(qp.get('ph'));  return isNaN(v) ? null : v; })();
-  const PRICE_D   = (() => { const v = parseFloat(qp.get('pd'));  return isNaN(v) ? null : v; })();
+  const qp      = new URLSearchParams(location.search);
+  const MODE    = qp.get('mode') || 'hour';
+  const TOOL_ID = qp.get('tool_id') || null;
+  const PRICE_H = (() => { const v = parseFloat(qp.get('ph')); return isNaN(v) ? null : v; })();
+  const PRICE_D = (() => { const v = parseFloat(qp.get('pd')); return isNaN(v) ? null : v; })();
 
-  document.getElementById('modeBadge').textContent =
-    MODE === 'day' ? 'Подобова' : 'Погодинна';
+  document.getElementById('modeBadge').textContent = MODE === 'day' ? 'Подобова' : 'Погодинна';
 
-  /* ── Booked periods (from bot, stored as UTC) ── */
+  /* ── Booked periods ── */
   const BOOKED = (() => {
     try {
       const raw = qp.get('booked');
@@ -344,40 +343,86 @@
   }
 
   /* ── State ── */
-  const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-  let calYear  = TODAY.getFullYear();
-  let calMonth = TODAY.getMonth();
-  let step      = 'start';
+  const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+  let calYear = TODAY.getFullYear(), calMonth = TODAY.getMonth();
+  let step = 'start';
   let startDate = null, startTime = '09:00';
   let endDate   = null, endTime   = '18:00';
 
-  /* ── i18n ── */
-  const MONTHS = [
-    'Січень','Лютий','Березень','Квітень','Травень','Червень',
-    'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень',
-  ];
-  const MONTHS_GEN = [
-    'Січ','Лют','Бер','Квіт','Трав','Черв',
-    'Лип','Серп','Вер','Жовт','Лист','Груд',
-  ];
-  const DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+  const MONTHS     = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  const MONTHS_GEN = ['Січ','Лют','Бер','Квіт','Трав','Черв','Лип','Серп','Вер','Жовт','Лист','Груд'];
+  const DOW        = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+
+  /* ── Kyiv timezone helpers ── */
+  function _kyivOffset(d) {
+    const ls = (yr, mo) => { const x = new Date(yr, mo, 31); x.setDate(31 - x.getDay()); return x; };
+    return (d >= ls(d.getFullYear(), 2) && d < ls(d.getFullYear(), 9)) ? 3 : 2;
+  }
+
+  function uaLocalToUTC(d, t) {
+    const [hh, mm] = t.split(':').map(Number);
+    try {
+      const probe  = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm));
+      const repr   = new Date(probe.toLocaleString('en-US', { timeZone: 'Europe/Kiev' }));
+      const target = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
+      const result = new Date(probe.getTime() + target.getTime() - repr.getTime());
+      if (!isNaN(result.getTime())) return result;
+    } catch (_) {}
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh - _kyivOffset(d), mm));
+  }
+
+  function kyivHHMM(utcDate) {
+    try {
+      const s = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false }).format(utcDate);
+      if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
+    } catch (_) {}
+    const off = _kyivOffset(new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate()));
+    const loc = new Date(utcDate.getTime() + off * 3600000);
+    return String(loc.getUTCHours()).padStart(2, '0') + ':' + String(loc.getUTCMinutes()).padStart(2, '0');
+  }
+
+  function kyivDDMM(utcDate) {
+    const off = _kyivOffset(new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate()));
+    const loc = new Date(utcDate.getTime() + off * 3600000);
+    return String(loc.getUTCDate()).padStart(2, '0') + '.' + String(loc.getUTCMonth() + 1).padStart(2, '0');
+  }
+
+  /* ── Generic helpers ── */
+  function sameDay(a, b) {
+    return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function isBefore(d, ref) {
+    const a = new Date(d); a.setHours(0, 0, 0, 0);
+    const b = new Date(ref); b.setHours(0, 0, 0, 0);
+    return a < b;
+  }
+  function dateISO(d, t) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${t}`;
+  }
+  function fmtDisplay(d, t) {
+    return `${String(d.getDate()).padStart(2,'0')} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${t} (Київ)`;
+  }
+  function inSelRange(d) {
+    if (!startDate || !endDate) return false;
+    const x = new Date(d); x.setHours(12);
+    const s = new Date(startDate); s.setHours(0);
+    const e = new Date(endDate); e.setHours(23);
+    return x > s && x < e;
+  }
 
   /* ── Booking helpers ── */
+  function _dayBounds(d) {
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    return { dayStart: uaLocalToUTC(d, '00:00'), dayEnd: uaLocalToUTC(next, '00:00') };
+  }
+
   function getDayBookingStatus(d) {
-    // Returns 'free', 'partial', or 'full'
-    const dayStart = uaLocalToUTC(d, '00:00');
-    const nextDay  = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-    const dayEnd   = uaLocalToUTC(nextDay, '00:00');
-
+    const { dayStart, dayEnd } = _dayBounds(d);
     const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
-    if (overlapping.length === 0) return 'free';
-
-    // Clamp each booking to this day's range, sort by start
+    if (!overlapping.length) return 'free';
     const clamped = overlapping
       .map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
       .sort((a, b) => a[0] - b[0]);
-
-    // Walk the merged intervals; any gap means 'partial'
     let reached = dayStart.getTime();
     for (const [s, e] of clamped) {
       if (s > reached) return 'partial';
@@ -387,196 +432,73 @@
   }
 
   function getBookedIntervalsForDay(d) {
-    const dayStart = uaLocalToUTC(d, '00:00');
-    const nextDay  = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-    const dayEnd   = uaLocalToUTC(nextDay, '00:00');
+    const { dayStart, dayEnd } = _dayBounds(d);
     const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
-    if (overlapping.length === 0) return [];
-
-    function utcToKyivHHMM(utcDate) {
-      try {
-        const s = new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
-        }).format(utcDate);
-        if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
-      } catch (_) {}
-      // Fallback: manual offset calculation
-      const local = new Date(utcDate.getTime() + _kyivOffset(new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate())) * 3600000);
-      return String(local.getUTCHours()).padStart(2, '0') + ':' + String(local.getUTCMinutes()).padStart(2, '0');
-    }
-
+    if (!overlapping.length) return [];
     const clamped = overlapping
-      .map(b => ({
-        s: new Date(Math.max(b.s.getTime(), dayStart.getTime())),
-        e: new Date(Math.min(b.e.getTime(), dayEnd.getTime())),
-      }))
+      .map(b => ({ s: new Date(Math.max(b.s.getTime(), dayStart.getTime())), e: new Date(Math.min(b.e.getTime(), dayEnd.getTime())) }))
       .sort((a, b) => a.s - b.s);
-
     const merged = [];
     for (const iv of clamped) {
-      if (!merged.length || iv.s > merged[merged.length - 1].e) {
-        merged.push({ s: new Date(iv.s), e: new Date(iv.e) });
-      } else {
-        merged[merged.length - 1].e = new Date(Math.max(merged[merged.length - 1].e.getTime(), iv.e.getTime()));
-      }
+      if (!merged.length || iv.s > merged[merged.length - 1].e) merged.push({ s: new Date(iv.s), e: new Date(iv.e) });
+      else merged[merged.length - 1].e = new Date(Math.max(merged[merged.length - 1].e.getTime(), iv.e.getTime()));
     }
-    return merged.map(iv => ({ start: utcToKyivHHMM(iv.s), end: utcToKyivHHMM(iv.e) }));
+    return merged.map(iv => ({ start: kyivHHMM(iv.s), end: kyivHHMM(iv.e) }));
   }
 
-  function renderBlockedHoursForDay(d) {
+  function showBlockedHours(d) {
     const el = document.getElementById('blockedHoursInfo');
     el.classList.remove('conflict');
     if (!d || !BOOKED.length) { el.style.display = 'none'; return; }
-    const intervals = getBookedIntervalsForDay(d);
-    if (!intervals.length) { el.style.display = 'none'; return; }
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    el.textContent = `⛔ Зайнятий час (${dd}.${mm}): ` + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
+    const ivs = getBookedIntervalsForDay(d);
+    if (!ivs.length) { el.style.display = 'none'; return; }
+    el.textContent = `⛔ Зайнятий час (${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}): ` + ivs.map(iv => `${iv.start}–${iv.end}`).join(', ');
     el.style.display = 'block';
   }
 
   function rangeOverlapsBooking(sd, st, ed, et) {
     if (!sd || !ed) return false;
-    const s = uaLocalToUTC(sd, st);
-    const e = uaLocalToUTC(ed, et);
+    const s = uaLocalToUTC(sd, st), e = uaLocalToUTC(ed, et);
     return BOOKED.some(b => b.s < e && b.e > s);
-  }
-
-  /* ── Generic helpers ── */
-  function sameDay(a, b) {
-    return a && b &&
-      a.getFullYear()===b.getFullYear() &&
-      a.getMonth()===b.getMonth() &&
-      a.getDate()===b.getDate();
-  }
-
-  function dateISO(d, t) {
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    return `${d.getFullYear()}-${mm}-${dd}T${t}`;
-  }
-
-  function fmtDisplay(d, t) {
-    const dd = String(d.getDate()).padStart(2,'0');
-    return `${dd} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${t} (Київ)`;
-  }
-
-  function isBefore(d, ref) {
-    const a = new Date(d); a.setHours(0,0,0,0);
-    const b = new Date(ref); b.setHours(0,0,0,0);
-    return a < b;
-  }
-
-  /* Kyiv DST helper — EU rules: last-Sunday-March → last-Sunday-October */
-  function _kyivOffset(d) {
-    const lastSun = (yr, mo) => { const x = new Date(yr, mo, 31); x.setDate(31 - x.getDay()); return x; };
-    return (d >= lastSun(d.getFullYear(), 2) && d < lastSun(d.getFullYear(), 9)) ? 3 : 2;
-  }
-
-  function uaLocalToUTC(d, t) {
-    const [hh, mm] = t.split(':').map(Number);
-    try {
-      const probeUTC = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm));
-      const uaRepr   = new Date(probeUTC.toLocaleString('en-US', { timeZone: 'Europe/Kiev' }));
-      const target   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
-      const result   = new Date(probeUTC.getTime() + target.getTime() - uaRepr.getTime());
-      if (!isNaN(result.getTime())) return result;
-    } catch (_) {}
-    // Fallback: hardcoded Kyiv DST (UTC+3 summer, UTC+2 winter)
-    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh - _kyivOffset(d), mm));
-  }
-
-  function inSelRange(d) {
-    if (!startDate || !endDate) return false;
-    const x = new Date(d); x.setHours(12);
-    const s = new Date(startDate); s.setHours(0);
-    const e = new Date(endDate); e.setHours(23);
-    return x > s && x < e;
   }
 
   /* ── Render calendar ── */
   function renderCal() {
-    document.getElementById('monthTitle').textContent =
-      `${MONTHS[calMonth]} ${calYear}`;
-
+    document.getElementById('monthTitle').textContent = `${MONTHS[calMonth]} ${calYear}`;
     const grid = document.getElementById('calGrid');
     grid.innerHTML = '';
-
-    DOW.forEach(d => {
+    DOW.forEach(label => {
       const el = document.createElement('div');
-      el.className = 'cal-dow';
-      el.textContent = d;
-      grid.appendChild(el);
+      el.className = 'cal-dow'; el.textContent = label; grid.appendChild(el);
     });
-
-    const firstDow = new Date(calYear, calMonth, 1).getDay();
-    const offset   = (firstDow + 6) % 7;
-    const days     = new Date(calYear, calMonth+1, 0).getDate();
-
+    const offset = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+    const days   = new Date(calYear, calMonth + 1, 0).getDate();
     for (let i = 0; i < offset; i++) {
-      const el = document.createElement('div');
-      el.className = 'cal-cell empty';
-      grid.appendChild(el);
+      const el = document.createElement('div'); el.className = 'cal-cell empty'; grid.appendChild(el);
     }
-
     for (let day = 1; day <= days; day++) {
-      const d  = new Date(calYear, calMonth, day);
+      const d = new Date(calYear, calMonth, day);
       const el = document.createElement('div');
       el.className = 'cal-cell';
       el.textContent = day;
-
-      const past       = isBefore(d, TODAY);
-      const tooEarly   = step === 'end' && startDate && (
-        MODE === 'day'
-          ? (isBefore(d, startDate) || sameDay(d, startDate))
-          : isBefore(d, startDate)
-      );
-      const bookStatus = getDayBookingStatus(d);
-
+      const past      = isBefore(d, TODAY);
+      const tooEarly  = step === 'end' && startDate && (MODE === 'day' ? (isBefore(d, startDate) || sameDay(d, startDate)) : isBefore(d, startDate));
+      const bookSt    = getDayBookingStatus(d);
       if (past || tooEarly) {
         el.classList.add('disabled');
-      } else if (bookStatus === 'full') {
+      } else if (bookSt === 'full') {
         el.classList.add('booked');
       } else {
-        const isSelS = sameDay(d, startDate);
-        const isSelE = sameDay(d, endDate);
-        const isRng  = inSelRange(d);
-        const isTod  = sameDay(d, TODAY);
-
-        if (isSelS && isSelE) {
-          el.classList.add('sel-start', 'sel-end');
-        } else if (isSelS) {
-          el.classList.add('sel-start');
-          if (endDate) el.classList.add('range-left');
-        } else if (isSelE) {
-          el.classList.add('sel-end');
-          if (startDate) el.classList.add('range-right');
-        } else if (isRng) {
-          el.classList.add('in-range');
-        } else if (isTod) {
-          el.classList.add('today');
-        } else if (bookStatus === 'partial') {
-          el.classList.add('booked-hint');
-        }
-
+        const isSelS = sameDay(d, startDate), isSelE = sameDay(d, endDate);
+        if      (isSelS && isSelE) el.classList.add('sel-start', 'sel-end');
+        else if (isSelS)           { el.classList.add('sel-start'); if (endDate) el.classList.add('range-left'); }
+        else if (isSelE)           { el.classList.add('sel-end');   if (startDate) el.classList.add('range-right'); }
+        else if (inSelRange(d))    el.classList.add('in-range');
+        else if (sameDay(d, TODAY)) el.classList.add('today');
+        else if (bookSt === 'partial') el.classList.add('booked-hint');
         el.addEventListener('click', () => pickDay(d));
       }
-
       grid.appendChild(el);
-    }
-  }
-
-  function showBookedPopup(d, intervals) {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const title = `⛔ Зайнятий час ${dd}.${mm}`;
-    const msg   = intervals.map(iv => iv.start + '–' + iv.end).join('\n');
-    if (tg && tg.showPopup) {
-      tg.showPopup({ title, message: msg, buttons: [{ type: 'ok' }] }).catch(() => {});
-    } else if (tg && tg.showAlert) {
-      tg.showAlert(title + ':\n' + msg);
-    } else {
-      alert(title + ':\n' + msg);
     }
   }
 
@@ -585,15 +507,19 @@
     if (step === 'start') {
       startDate = new Date(d);
       endDate = null;
-      const iv = getBookedIntervalsForDay(d);
-      if (iv.length) showBookedPopup(d, iv);
-      renderBlockedHoursForDay(startDate);
+      // For day mode: if user picks today, auto-advance startTime past now
+      if (MODE === 'day' && sameDay(startDate, TODAY)) {
+        const nowKyiv = kyivHHMM(new Date());
+        const [h] = nowKyiv.split(':').map(Number);
+        const nextH = Math.min(h + 1, 23);
+        startTime = String(nextH).padStart(2, '0') + ':00';
+        document.getElementById('timeInput').value = startTime;
+      }
+      showBlockedHours(startDate);
       setTimeout(() => goStep('end'), 180);
     } else {
       endDate = new Date(d);
-      const iv = getBookedIntervalsForDay(d);
-      if (iv.length) showBookedPopup(d, iv);
-      renderBlockedHoursForDay(endDate);
+      showBlockedHours(endDate);
     }
     renderCal();
     renderSummary();
@@ -602,23 +528,12 @@
 
   function goStep(s) {
     step = s;
-    const ps = document.getElementById('pillStart');
-    const pe = document.getElementById('pillEnd');
-    ps.className = 'step-pill' + (s==='start' ? ' active' : startDate ? ' done' : '');
-    pe.className = 'step-pill' + (s==='end'   ? ' active' : endDate   ? ' done' : '');
-
+    document.getElementById('pillStart').className = 'step-pill' + (s === 'start' ? ' active' : startDate ? ' done' : '');
+    document.getElementById('pillEnd').className   = 'step-pill' + (s === 'end'   ? ' active' : endDate   ? ' done' : '');
     const inp = document.getElementById('timeInput');
-    const lbl = document.getElementById('timeLbl');
-    if (s === 'start') {
-      inp.value = startTime;
-      lbl.textContent = '⏰ Час початку (Київ)';
-      renderBlockedHoursForDay(startDate);
-    } else {
-      inp.value = endTime;
-      lbl.textContent = '⏰ Час завершення (Київ)';
-      renderBlockedHoursForDay(endDate || startDate);
-    }
-
+    inp.value = s === 'start' ? startTime : endTime;
+    document.getElementById('timeLbl').textContent = s === 'start' ? '⏰ Час початку (Київ)' : '⏰ Час завершення (Київ)';
+    showBlockedHours(s === 'start' ? startDate : (endDate || startDate));
     renderCal();
   }
 
@@ -631,173 +546,122 @@
 
   function onTime() {
     const v = document.getElementById('timeInput').value;
-    if (step === 'start') startTime = v;
-    else endTime = v;
-
+    if (step === 'start') startTime = v; else endTime = v;
     const activeDate = step === 'start' ? startDate : endDate;
     if (activeDate && BOOKED.length) {
       const t = uaLocalToUTC(activeDate, v);
       const el = document.getElementById('blockedHoursInfo');
-      const intervals = getBookedIntervalsForDay(activeDate);
+      const ivs = getBookedIntervalsForDay(activeDate);
       if (!isNaN(t.getTime()) && BOOKED.some(b => b.s <= t && t < b.e)) {
-        const dd = String(activeDate.getDate()).padStart(2, '0');
-        const mm = String(activeDate.getMonth() + 1).padStart(2, '0');
-        el.textContent = `⚠️ Цей час зайнятий! Зайнятий час (${dd}.${mm}): ` + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
+        el.textContent = `⚠️ Цей час зайнятий! (${String(activeDate.getDate()).padStart(2,'0')}.${String(activeDate.getMonth()+1).padStart(2,'0')}): ` + ivs.map(iv => `${iv.start}–${iv.end}`).join(', ');
         el.classList.add('conflict');
         el.style.display = 'block';
-      } else if (intervals.length) {
-        renderBlockedHoursForDay(activeDate);
       } else {
-        el.classList.remove('conflict');
-        el.style.display = 'none';
+        showBlockedHours(activeDate);
       }
     }
-
     renderSummary();
     updateBtn();
   }
 
-  function renderSummary() {
-    const ss = document.getElementById('sumStart');
-    const se = document.getElementById('sumEnd');
-    const ow = document.getElementById('overlapWarn');
-
-    ss.textContent = startDate ? fmtDisplay(startDate, startTime) : 'не вибрано';
-    ss.className   = 'sum-val' + (startDate ? '' : ' empty');
-
-    se.textContent = endDate ? fmtDisplay(endDate, endTime) : 'не вибрано';
-    se.className   = 'sum-val' + (endDate ? '' : ' empty');
-
-    const hasOverlap = BOOKED.length > 0 &&
-      rangeOverlapsBooking(startDate, startTime, endDate, endTime);
-    ow.className = 'overlap-warn' + (hasOverlap ? ' visible' : '');
-
-    const price = calcPrice();
-    const priceRow = document.getElementById('priceRow');
-    if (price && Number.isFinite(price.total)) {
-      document.getElementById('sumPrice').textContent =
-        `${price.total.toFixed(2)}₴`;
-      document.getElementById('priceDetail').textContent =
-        `${price.units} ${price.label} × ${price.rate.toFixed(2)}₴`;
-      priceRow.className = 'sum-row sum-price-row visible';
-    } else if (startDate) {
-      document.getElementById('sumPrice').textContent = '0₴';
-      document.getElementById('priceDetail').textContent = '';
-      priceRow.className = 'sum-row sum-price-row visible';
-    } else {
-      priceRow.className = 'sum-row sum-price-row';
-    }
-  }
-
-  /* ── Price calculation ── */
+  /* ── Price ── */
   function calcPrice() {
     if (!startDate || !endDate) return null;
-    const s = uaLocalToUTC(startDate, startTime);
-    const e = uaLocalToUTC(endDate, endTime);
+    const s = uaLocalToUTC(startDate, startTime), e = uaLocalToUTC(endDate, endTime);
     if (e <= s) return null;
-    const diffMs = e - s;
+    const ms = e - s;
     if (MODE === 'hour' && PRICE_H !== null) {
-      const units = Math.max(1, Math.ceil(diffMs / 3_600_000));
+      const units = Math.max(1, Math.ceil(ms / 3_600_000));
       return { total: Math.round(PRICE_H * units * 100) / 100, units, label: 'год', rate: PRICE_H };
     }
     if (MODE === 'day' && PRICE_D !== null) {
-      const units = Math.max(1, Math.ceil(diffMs / 86_400_000));
+      const units = Math.max(1, Math.ceil(ms / 86_400_000));
       return { total: Math.round(PRICE_D * units * 100) / 100, units, label: 'дн', rate: PRICE_D };
     }
     return null;
   }
 
+  function renderSummary() {
+    const ss = document.getElementById('sumStart'), se = document.getElementById('sumEnd'), ow = document.getElementById('overlapWarn');
+    ss.textContent = startDate ? fmtDisplay(startDate, startTime) : 'не вибрано';
+    ss.className   = 'sum-val' + (startDate ? '' : ' empty');
+    se.textContent = endDate ? fmtDisplay(endDate, endTime) : 'не вибрано';
+    se.className   = 'sum-val' + (endDate ? '' : ' empty');
+    ow.className   = 'overlap-warn' + (BOOKED.length && rangeOverlapsBooking(startDate, startTime, endDate, endTime) ? ' visible' : '');
+    const price = calcPrice(), pr = document.getElementById('priceRow');
+    if (price && Number.isFinite(price.total)) {
+      document.getElementById('sumPrice').textContent   = `${price.total.toFixed(2)}₴`;
+      document.getElementById('priceDetail').textContent = `${price.units} ${price.label} × ${price.rate.toFixed(2)}₴`;
+      pr.className = 'sum-row sum-price-row visible';
+    } else if (startDate) {
+      document.getElementById('sumPrice').textContent   = '0₴';
+      document.getElementById('priceDetail').textContent = '';
+      pr.className = 'sum-row sum-price-row visible';
+    } else {
+      pr.className = 'sum-row sum-price-row';
+    }
+  }
+
+  /* ── Validation ── */
+  function _startInPast(s) {
+    // Day mode: check date only (today is always a valid start date)
+    return MODE === 'day' ? isBefore(startDate, TODAY) : s <= new Date();
+  }
+
   function isValid() {
     if (!startDate || !endDate) return false;
-    const s = uaLocalToUTC(startDate, startTime);
-    const e = uaLocalToUTC(endDate, endTime);
-    if (s <= new Date()) return false;
+    const s = uaLocalToUTC(startDate, startTime), e = uaLocalToUTC(endDate, endTime);
+    if (_startInPast(s)) return false;
     if (e <= s) return false;
     if (MODE === 'hour' && (e - s) < 3_600_000) return false;
-    if (MODE === 'day'  && (sameDay(endDate, startDate) || isBefore(endDate, startDate))) return false;
+    if (MODE === 'day'  && !isBefore(startDate, endDate)) return false;
     if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) return false;
     return true;
   }
 
   function updateBtn() {
     const btn = document.getElementById('confirmBtn');
-    if (!startDate) {
-      btn.textContent = 'Оберіть дату початку'; btn.disabled = true; return;
-    }
-    if (!endDate) {
-      btn.textContent = 'Оберіть дату завершення'; btn.disabled = true; return;
-    }
-    const s = uaLocalToUTC(startDate, startTime);
-    const e = uaLocalToUTC(endDate, endTime);
-    if (s <= new Date()) {
+    if (!startDate) { btn.textContent = 'Оберіть дату початку';    btn.disabled = true; return; }
+    if (!endDate)   { btn.textContent = 'Оберіть дату завершення'; btn.disabled = true; return; }
+
+    const s = uaLocalToUTC(startDate, startTime), e = uaLocalToUTC(endDate, endTime);
+
+    if (_startInPast(s)) {
+      if (MODE === 'day') {
+        btn.textContent = '⚠️ Дата початку в минулому'; btn.disabled = true; return;
+      }
       const blocking = BOOKED.find(b => b.s <= s && b.e > s);
       const minStart = blocking ? new Date(blocking.e) : new Date();
-      let kyivTime;
-      try {
-        const fmt = new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
-        }).format(minStart);
-        if (/^\d{2}:\d{2}/.test(fmt)) kyivTime = fmt.slice(0, 5);
-      } catch (_) {}
-      if (!kyivTime) {
-        const off = _kyivOffset(new Date(minStart.getFullYear(), minStart.getMonth(), minStart.getDate()));
-        const loc = new Date(minStart.getTime() + off * 3600000);
-        kyivTime = String(loc.getUTCHours()).padStart(2, '0') + ':' + String(loc.getUTCMinutes()).padStart(2, '0');
-      }
-      btn.textContent = `⚠️ Орендувати можна з ${kyivTime}`; btn.disabled = true;
-    } else if (e <= s) {
-      btn.textContent = 'Кінець раніше початку ⚠️'; btn.disabled = true;
-    } else if (MODE === 'hour' && (e - s) < 3_600_000) {
-      btn.textContent = 'Мінімум 1 година ⚠️'; btn.disabled = true;
-    } else if (MODE === 'day' && (sameDay(endDate, startDate) || isBefore(endDate, startDate))) {
-      btn.textContent = 'Мінімум 1 день ⚠️'; btn.disabled = true;
-    } else if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) {
-      const s2 = uaLocalToUTC(startDate, startTime);
-      const e2 = uaLocalToUTC(endDate, endTime);
-      const conflict = BOOKED.find(b => b.s < e2 && b.e > s2);
-      const toKyiv = d => {
-        try {
-          const f = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
-          if (/^\d{2}:\d{2}/.test(f)) return f.slice(0, 5);
-        } catch (_) {}
-        const off = _kyivOffset(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
-        const loc = new Date(d.getTime() + off * 3600000);
-        return String(loc.getUTCHours()).padStart(2,'0') + ':' + String(loc.getUTCMinutes()).padStart(2,'0');
-      };
-      const toDate = d => {
-        const loc = new Date(d.getTime() + _kyivOffset(new Date(d.getFullYear(), d.getMonth(), d.getDate())) * 3600000);
-        return String(loc.getUTCDate()).padStart(2,'0') + '.' + String(loc.getUTCMonth()+1).padStart(2,'0');
-      };
+      btn.textContent = `⚠️ Орендувати можна з ${kyivHHMM(minStart)}`; btn.disabled = true; return;
+    }
+    if (e <= s) {
+      btn.textContent = 'Кінець раніше початку ⚠️'; btn.disabled = true; return;
+    }
+    if (MODE === 'hour' && (e - s) < 3_600_000) {
+      btn.textContent = 'Мінімум 1 година ⚠️'; btn.disabled = true; return;
+    }
+    if (MODE === 'day' && !isBefore(startDate, endDate)) {
+      btn.textContent = 'Кінець має бути наступного дня ⚠️'; btn.disabled = true; return;
+    }
+    if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) {
+      const conflict = BOOKED.find(b => b.s < e && b.e > s);
       if (conflict) {
-        if (conflict.s <= s2) {
-          btn.textContent = `⚠️ Початок зайнятий — змініть на після ${toKyiv(conflict.e)} (${toDate(conflict.e)})`;
-        } else if (conflict.e >= e2) {
-          btn.textContent = `⚠️ Кінець зайнятий — змініть на до ${toKyiv(conflict.s)} (${toDate(conflict.s)})`;
-        } else {
-          btn.textContent = `⚠️ Бронювання ${toKyiv(conflict.s)}–${toKyiv(conflict.e)} (${toDate(conflict.s)}) — змініть кінець`;
-        }
+        if (conflict.s <= s)   btn.textContent = `⚠️ Початок зайнятий — вільно з ${kyivHHMM(conflict.e)} (${kyivDDMM(conflict.e)})`;
+        else if (conflict.e >= e) btn.textContent = `⚠️ Кінець зайнятий — змініть до ${kyivHHMM(conflict.s)} (${kyivDDMM(conflict.s)})`;
+        else                   btn.textContent = `⚠️ Бронювання ${kyivHHMM(conflict.s)}–${kyivHHMM(conflict.e)} (${kyivDDMM(conflict.s)}) — змініть кінець`;
       } else {
         btn.textContent = '⚠️ Перетин з бронюванням';
       }
-      btn.disabled = true;
-    } else {
-      btn.textContent = 'Підтвердити →'; btn.disabled = false;
+      btn.disabled = true; return;
     }
+    btn.textContent = 'Підтвердити →'; btn.disabled = false;
   }
 
   function submit() {
     if (!isValid()) return;
-    const payload = {
-      start_at: dateISO(startDate, startTime),
-      end_at:   dateISO(endDate,   endTime),
-      unit:     MODE,
-      tool_id:  TOOL_ID ? parseInt(TOOL_ID) : null,
-    };
-    if (tg) {
-      tg.sendData(JSON.stringify(payload));
-    } else {
-      alert('Payload:\n' + JSON.stringify(payload, null, 2));
-    }
+    const payload = { start_at: dateISO(startDate, startTime), end_at: dateISO(endDate, endTime), unit: MODE, tool_id: TOOL_ID ? parseInt(TOOL_ID) : null };
+    if (tg) tg.sendData(JSON.stringify(payload));
+    else alert('Payload:\n' + JSON.stringify(payload, null, 2));
   }
 
   /* ── Init ── */
