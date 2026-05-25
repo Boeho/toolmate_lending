@@ -282,7 +282,7 @@
 
 <div class="time-block">
   <label id="timeLbl">⏰ Час початку (Київ)</label>
-  <input type="time" class="time-input" id="timeInput" value="09:00" onchange="onTime()">
+  <input type="time" class="time-input" id="timeInput" value="09:00" oninput="onTime()" onchange="onTime()">
   <div class="blocked-hours-info" id="blockedHoursInfo"></div>
 </div>
 
@@ -730,12 +730,23 @@
     const s = uaLocalToUTC(startDate, startTime);
     const e = uaLocalToUTC(endDate, endTime);
     if (s <= new Date()) {
-      const diffMs = new Date() - s;
-      const diffMin = Math.ceil(diffMs / 60000);
-      const pastLabel = diffMin < 60
-        ? `${diffMin} хв тому ⚠️`
-        : `${Math.round(diffMin / 60 * 10) / 10} год тому ⚠️`;
-      btn.textContent = `Початок у минулому (${pastLabel})`; btn.disabled = true;
+      let minStart = new Date();
+      for (const b of BOOKED) {
+        if (b.s <= minStart && b.e > minStart) minStart = new Date(b.e);
+      }
+      let kyivTime;
+      try {
+        const fmt = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(minStart);
+        if (/^\d{2}:\d{2}/.test(fmt)) kyivTime = fmt.slice(0, 5);
+      } catch (_) {}
+      if (!kyivTime) {
+        const off = _kyivOffset(new Date(minStart.getFullYear(), minStart.getMonth(), minStart.getDate()));
+        const loc = new Date(minStart.getTime() + off * 3600000);
+        kyivTime = String(loc.getUTCHours()).padStart(2, '0') + ':' + String(loc.getUTCMinutes()).padStart(2, '0');
+      }
+      btn.textContent = `⚠️ Орендувати можна з ${kyivTime}`; btn.disabled = true;
     } else if (e <= s) {
       btn.textContent = 'Кінець раніше початку ⚠️'; btn.disabled = true;
     } else if (MODE === 'hour' && (e - s) < 3_600_000) {
