@@ -125,15 +125,23 @@
       text-decoration: line-through;
       opacity: .7;
     }
-    /* booked dot for days that are only partially booked (selectable) */
+    /* partially booked: same red/crossed look but remains clickable */
+    .cal-cell.booked-hint {
+      background: var(--booked-bg);
+      color: var(--booked-dot);
+      text-decoration: line-through;
+      opacity: .7;
+    }
+    /* blue accent dot = free slots still available */
     .cal-cell.booked-hint::after {
       content: '';
       position: absolute;
-      bottom: 3px; left: 50%;
+      bottom: 2px; left: 50%;
       transform: translateX(-50%);
-      width: 4px; height: 4px;
-      background: var(--booked-dot);
+      width: 5px; height: 5px;
+      background: var(--accent);
       border-radius: 50%;
+      border: 1.5px solid var(--bg);
     }
 
     /* ── Legend ── */
@@ -150,10 +158,11 @@
       flex-shrink: 0;
     }
     .legend-dot-partial {
-      width: 6px; height: 6px;
+      width: 5px; height: 5px;
       border-radius: 50%;
-      background: var(--booked-dot);
+      background: var(--accent);
       flex-shrink: 0;
+      border: 1.5px solid var(--booked-bg);
     }
 
     /* ── Time picker ── */
@@ -263,7 +272,7 @@
 </div>
 <div class="legend" id="legendPartial" style="display:none">
   <div class="legend-dot-partial"></div>
-  <span>— є часткове бронювання, обери вільний час</span>
+  <span>— є вільні години (можна обрати)</span>
 </div>
 
 <div class="time-block">
@@ -609,6 +618,10 @@
         `${price.total.toFixed(2)}₴`;
       document.getElementById('priceDetail').textContent =
         `${price.units} ${price.label} × ${price.rate.toFixed(2)}₴`;
+      priceRow.className = 'sum-row sum-price-row visible';
+    } else if (startDate) {
+      document.getElementById('sumPrice').textContent = '0₴';
+      document.getElementById('priceDetail').textContent = '';
       priceRow.className = 'sum-row sum-price-row visible';
     } else {
       priceRow.className = 'sum-row sum-price-row';
