@@ -627,6 +627,16 @@
     const v = document.getElementById('timeInput').value;
     if (step === 'start') startTime = v;
     else endTime = v;
+
+    const activeDate = step === 'start' ? startDate : endDate;
+    if (activeDate && BOOKED.length) {
+      const t = uaLocalToUTC(activeDate, v);
+      if (!isNaN(t.getTime()) && BOOKED.some(b => b.s <= t && t < b.e)) {
+        const intervals = getBookedIntervalsForDay(activeDate);
+        if (intervals.length) showBookedPopup(activeDate, intervals);
+      }
+    }
+
     renderSummary();
     updateBtn();
   }
