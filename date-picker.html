@@ -730,7 +730,12 @@
     const s = uaLocalToUTC(startDate, startTime);
     const e = uaLocalToUTC(endDate, endTime);
     if (s <= new Date()) {
-      btn.textContent = 'Початок у минулому ⚠️'; btn.disabled = true;
+      const diffMs = new Date() - s;
+      const diffMin = Math.ceil(diffMs / 60000);
+      const pastLabel = diffMin < 60
+        ? `${diffMin} хв тому ⚠️`
+        : `${Math.round(diffMin / 60 * 10) / 10} год тому ⚠️`;
+      btn.textContent = `Початок у минулому (${pastLabel})`; btn.disabled = true;
     } else if (e <= s) {
       btn.textContent = 'Кінець раніше початку ⚠️'; btn.disabled = true;
     } else if (MODE === 'hour' && (e - s) < 3_600_000) {
