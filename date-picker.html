@@ -730,10 +730,8 @@
     const s = uaLocalToUTC(startDate, startTime);
     const e = uaLocalToUTC(endDate, endTime);
     if (s <= new Date()) {
-      let minStart = new Date();
-      for (const b of BOOKED) {
-        if (b.s <= minStart && b.e > minStart) minStart = new Date(b.e);
-      }
+      const blocking = BOOKED.find(b => b.s <= s && b.e > s);
+      const minStart = blocking ? new Date(blocking.e) : new Date();
       let kyivTime;
       try {
         const fmt = new Intl.DateTimeFormat('en-GB', {
