@@ -338,6 +338,9 @@
     } catch { return []; }
   })();
 
+  // 1-hour return buffer added to every booking end
+  const BOOKED_BUFFERED = BOOKED.map(b => ({ s: b.s, e: new Date(b.e.getTime() + 3_600_000) }));
+
   if (BOOKED.length) {
     document.getElementById('legend').style.display = 'flex';
     document.getElementById('legendPartial').style.display = 'flex';
@@ -417,53 +420,65 @@
     return { dayStart: uaLocalToUTC(d, '00:00'), dayEnd: uaLocalToUTC(next, '00:00') };
   }
 
+  function _mergeIntervals(pairs) {
+    const sorted = [...pairs].sort((a, b) => a[0] - b[0]);
+    const out = [];
+    for (const [s, e] of sorted) {
+      if (!out.length || s > out[out.length - 1][1]) out.push([s, e]);
+      else out[out.length - 1][1] = Math.max(out[out.length - 1][1], e);
+    }
+    return out;
+  }
+
   function getDayBookingStatus(d) {
     const { dayStart, dayEnd } = _dayBounds(d);
-    const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
-    if (!overlapping.length) return 'free';
 
-    // Merge clamped bookings
-    const clamped = overlapping
-      .map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
-      .sort((a, b) => a[0] - b[0]);
-    const merged = [];
-    for (const [s, e] of clamped) {
-      if (!merged.length || s > merged[merged.length - 1][1]) merged.push([s, e]);
-      else merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
+    if (MODE === 'day') {
+      // Check 48 h window: is there a free 24 h slot that starts within this day?
+      const windowEnd = new Date(dayStart.getTime() + 48 * 3_600_000);
+      const overlapping = BOOKED_BUFFERED.filter(b => b.s < windowEnd && b.e > dayStart);
+      if (!overlapping.length) return 'free';
+      const merged = _mergeIntervals(
+        overlapping.map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), windowEnd.getTime())])
+      );
+      const dayEndMs = dayEnd.getTime();
+      let cursor = dayStart.getTime();
+      for (const [s, e] of merged) {
+        if (cursor < dayEndMs && s - cursor >= 86_400_000) return 'partial';
+        cursor = Math.max(cursor, e);
+      }
+      if (cursor < dayEndMs && windowEnd.getTime() - cursor >= 86_400_000) return 'partial';
+      return 'full';
     }
 
-    // Compute longest contiguous free slot
+    // Hourly mode: longest contiguous free slot within the day ≥ 2 h
+    const overlapping = BOOKED_BUFFERED.filter(b => b.s < dayEnd && b.e > dayStart);
+    if (!overlapping.length) return 'free';
+    const merged = _mergeIntervals(
+      overlapping.map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
+    );
     let maxFreeMs = 0, cursor = dayStart.getTime();
     for (const [s, e] of merged) {
       if (s > cursor) maxFreeMs = Math.max(maxFreeMs, s - cursor);
       cursor = Math.max(cursor, e);
     }
     maxFreeMs = Math.max(maxFreeMs, dayEnd.getTime() - cursor);
-
-    // Threshold: 2 h for hourly mode, 6 h for daily mode
-    const minFreeMs = (MODE === 'day' ? 6 : 2) * 3_600_000;
-    return maxFreeMs < minFreeMs ? 'full' : 'partial';
+    return maxFreeMs < 2 * 3_600_000 ? 'full' : 'partial';
   }
 
   function getBookedIntervalsForDay(d) {
     const { dayStart, dayEnd } = _dayBounds(d);
-    const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
+    const overlapping = BOOKED_BUFFERED.filter(b => b.s < dayEnd && b.e > dayStart);
     if (!overlapping.length) return [];
-    const clamped = overlapping
-      .map(b => ({ s: new Date(Math.max(b.s.getTime(), dayStart.getTime())), e: new Date(Math.min(b.e.getTime(), dayEnd.getTime())) }))
-      .sort((a, b) => a.s - b.s);
-    const merged = [];
-    for (const iv of clamped) {
-      if (!merged.length || iv.s > merged[merged.length - 1].e) merged.push({ s: new Date(iv.s), e: new Date(iv.e) });
-      else merged[merged.length - 1].e = new Date(Math.max(merged[merged.length - 1].e.getTime(), iv.e.getTime()));
-    }
-    return merged.map(iv => ({ start: kyivHHMM(iv.s), end: kyivHHMM(iv.e) }));
+    return _mergeIntervals(
+      overlapping.map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
+    ).map(([s, e]) => ({ start: kyivHHMM(new Date(s)), end: kyivHHMM(new Date(e)) }));
   }
 
   function showBlockedHours(d) {
     const el = document.getElementById('blockedHoursInfo');
     el.classList.remove('conflict');
-    if (!d || !BOOKED.length) { el.style.display = 'none'; return; }
+    if (!d || !BOOKED_BUFFERED.length) { el.style.display = 'none'; return; }
     const ivs = getBookedIntervalsForDay(d);
     if (!ivs.length) { el.style.display = 'none'; return; }
     el.textContent = `⛔ Зайнятий час (${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}): ` + ivs.map(iv => `${iv.start}–${iv.end}`).join(', ');
@@ -473,7 +488,7 @@
   function rangeOverlapsBooking(sd, st, ed, et) {
     if (!sd || !ed) return false;
     const s = uaLocalToUTC(sd, st), e = uaLocalToUTC(ed, et);
-    return BOOKED.some(b => b.s < e && b.e > s);
+    return BOOKED_BUFFERED.some(b => b.s < e && b.e > s);
   }
 
   /* ── Render calendar ── */
@@ -525,7 +540,7 @@
       if (MODE === 'day' && sameDay(startDate, TODAY)) {
         const nowKyiv = kyivHHMM(new Date());
         const [h] = nowKyiv.split(':').map(Number);
-        const nextH = Math.min(h + 1, 23);
+        const nextH = Math.min(Math.max(h + 1, 8), 20);
         startTime = String(nextH).padStart(2, '0') + ':00';
         document.getElementById('timeInput').value = startTime;
       }
@@ -533,6 +548,7 @@
       setTimeout(() => goStep('end'), 180);
     } else {
       endDate = new Date(d);
+      if (MODE === 'day') endTime = startTime;
       showBlockedHours(endDate);
     }
     renderCal();
@@ -546,8 +562,18 @@
     document.getElementById('pillStart').className = 'step-pill' + (s === 'start' ? ' active' : startDate ? ' done' : '');
     document.getElementById('pillEnd').className   = 'step-pill' + (s === 'end'   ? ' active' : endDate   ? ' done' : '');
     const inp = document.getElementById('timeInput');
-    inp.value = s === 'start' ? startTime : endTime;
-    document.getElementById('timeLbl').textContent = s === 'start' ? '⏰ Час початку (Київ)' : '⏰ Час завершення (Київ)';
+    if (MODE === 'day' && s === 'end') {
+      endTime = startTime;
+      inp.value = startTime;
+      inp.disabled = true;
+      document.getElementById('timeLbl').textContent = '⏰ Час (дорівнює початку, крок 24 год)';
+    } else {
+      inp.value = s === 'start' ? startTime : endTime;
+      inp.disabled = false;
+      if (MODE === 'day' && s === 'start') { inp.min = '08:00'; inp.max = '20:00'; }
+      else { inp.min = ''; inp.max = ''; }
+      document.getElementById('timeLbl').textContent = s === 'start' ? '⏰ Час початку (Київ)' : '⏰ Час завершення (Київ)';
+    }
     showBlockedHours(s === 'start' ? startDate : (endDate || startDate));
     renderCal();
   }
@@ -561,13 +587,13 @@
 
   function onTime() {
     const v = document.getElementById('timeInput').value;
-    if (step === 'start') startTime = v; else endTime = v;
+    if (step === 'start') { startTime = v; if (MODE === 'day') endTime = v; } else endTime = v;
     const activeDate = step === 'start' ? startDate : endDate;
-    if (activeDate && BOOKED.length) {
+    if (activeDate && BOOKED_BUFFERED.length) {
       const t = uaLocalToUTC(activeDate, v);
       const el = document.getElementById('blockedHoursInfo');
       const ivs = getBookedIntervalsForDay(activeDate);
-      if (!isNaN(t.getTime()) && BOOKED.some(b => b.s <= t && t < b.e)) {
+      if (!isNaN(t.getTime()) && BOOKED_BUFFERED.some(b => b.s <= t && t < b.e)) {
         el.textContent = `⚠️ Цей час зайнятий! (${String(activeDate.getDate()).padStart(2,'0')}.${String(activeDate.getMonth()+1).padStart(2,'0')}): ` + ivs.map(iv => `${iv.start}–${iv.end}`).join(', ');
         el.classList.add('conflict');
         el.style.display = 'block';
@@ -646,7 +672,7 @@
       if (MODE === 'day') {
         btn.textContent = '⚠️ Дата початку в минулому'; btn.disabled = true; return;
       }
-      const blocking = BOOKED.find(b => b.s <= s && b.e > s);
+      const blocking = BOOKED_BUFFERED.find(b => b.s <= s && b.e > s);
       const minStart = blocking ? new Date(blocking.e) : new Date();
       btn.textContent = `⚠️ Орендувати можна з ${kyivHHMM(minStart)}`; btn.disabled = true; return;
     }
@@ -660,7 +686,7 @@
       btn.textContent = 'Кінець має бути наступного дня ⚠️'; btn.disabled = true; return;
     }
     if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) {
-      const conflict = BOOKED.find(b => b.s < e && b.e > s);
+      const conflict = BOOKED_BUFFERED.find(b => b.s < e && b.e > s);
       if (conflict) {
         if (conflict.s <= s)   btn.textContent = `⚠️ Початок зайнятий — вільно з ${kyivHHMM(conflict.e)} (${kyivDDMM(conflict.e)})`;
         else if (conflict.e >= e) btn.textContent = `⚠️ Кінець зайнятий — змініть до ${kyivHHMM(conflict.s)} (${kyivDDMM(conflict.s)})`;
