@@ -193,6 +193,11 @@
       line-height: 1.4;
       display: none;
     }
+    .blocked-hours-info.conflict {
+      background: rgba(220, 60, 60, 0.28);
+      border: 1px solid var(--booked-dot);
+      font-weight: 600;
+    }
 
     /* ── Summary card ── */
     .summary {
@@ -420,6 +425,7 @@
 
   function renderBlockedHoursForDay(d) {
     const el = document.getElementById('blockedHoursInfo');
+    el.classList.remove('conflict');
     if (!d || !BOOKED.length) { el.style.display = 'none'; return; }
     const intervals = getBookedIntervalsForDay(d);
     if (!intervals.length) { el.style.display = 'none'; return; }
@@ -631,9 +637,19 @@
     const activeDate = step === 'start' ? startDate : endDate;
     if (activeDate && BOOKED.length) {
       const t = uaLocalToUTC(activeDate, v);
+      const el = document.getElementById('blockedHoursInfo');
+      const intervals = getBookedIntervalsForDay(activeDate);
       if (!isNaN(t.getTime()) && BOOKED.some(b => b.s <= t && t < b.e)) {
-        const intervals = getBookedIntervalsForDay(activeDate);
-        if (intervals.length) showBookedPopup(activeDate, intervals);
+        const dd = String(activeDate.getDate()).padStart(2, '0');
+        const mm = String(activeDate.getMonth() + 1).padStart(2, '0');
+        el.textContent = `⚠️ Цей час зайнятий! Зайнятий час (${dd}.${mm}): ` + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
+        el.classList.add('conflict');
+        el.style.display = 'block';
+      } else if (intervals.length) {
+        renderBlockedHoursForDay(activeDate);
+      } else {
+        el.classList.remove('conflict');
+        el.style.display = 'none';
       }
     }
 
