@@ -246,7 +246,7 @@
 </div>
 
 <div class="time-block">
-  <label id="timeLbl">⏰ Час початку (UTC)</label>
+  <label id="timeLbl">⏰ Час початку (Київ)</label>
   <input type="time" class="time-input" id="timeInput" value="09:00" onchange="onTime()">
 </div>
 
@@ -290,7 +290,7 @@
   document.getElementById('modeBadge').textContent =
     MODE === 'day' ? 'Подобова' : 'Погодинна';
 
-  /* ── Booked periods (from bot, UTC) ── */
+  /* ── Booked periods (from bot, stored as UTC) ── */
   const BOOKED = (() => {
     try {
       const raw = qp.get('booked');
@@ -333,8 +333,8 @@
 
   function rangeOverlapsBooking(sd, st, ed, et) {
     if (!sd || !ed) return false;
-    const s = new Date(dateISO(sd, st) + 'Z');
-    const e = new Date(dateISO(ed, et) + 'Z');
+    const s = uaLocalToUTC(sd, st);
+    const e = uaLocalToUTC(ed, et);
     return BOOKED.some(b => b.s < e && b.e > s);
   }
 
@@ -354,13 +354,21 @@
 
   function fmtDisplay(d, t) {
     const dd = String(d.getDate()).padStart(2,'0');
-    return `${dd} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${t} UTC`;
+    return `${dd} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${t} (Київ)`;
   }
 
   function isBefore(d, ref) {
     const a = new Date(d); a.setHours(0,0,0,0);
     const b = new Date(ref); b.setHours(0,0,0,0);
     return a < b;
+  }
+
+  function uaLocalToUTC(d, t) {
+    // Convert a calendar date + "HH:MM" Kyiv local time to a UTC Date
+    const probeUTC = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), ...t.split(':').map(Number)));
+    const uaRepr   = new Date(probeUTC.toLocaleString('en-US', { timeZone: 'Europe/Kiev' }));
+    const target   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), ...t.split(':').map(Number));
+    return new Date(probeUTC.getTime() + target - uaRepr);
   }
 
   function inSelRange(d) {
@@ -467,10 +475,10 @@
     const lbl = document.getElementById('timeLbl');
     if (s === 'start') {
       inp.value = startTime;
-      lbl.textContent = '⏰ Час початку (UTC)';
+      lbl.textContent = '⏰ Час початку (Київ)';
     } else {
       inp.value = endTime;
-      lbl.textContent = '⏰ Час завершення (UTC)';
+      lbl.textContent = '⏰ Час завершення (Київ)';
     }
 
     renderCal();
@@ -522,8 +530,8 @@
   /* ── Price calculation ── */
   function calcPrice() {
     if (!startDate || !endDate) return null;
-    const s = new Date(dateISO(startDate, startTime) + 'Z');
-    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
+    const s = uaLocalToUTC(startDate, startTime);
+    const e = uaLocalToUTC(endDate, endTime);
     if (e <= s) return null;
     const diffMs = e - s;
     if (MODE === 'hour' && PRICE_H !== null) {
@@ -539,8 +547,8 @@
 
   function isValid() {
     if (!startDate || !endDate) return false;
-    const s = new Date(dateISO(startDate, startTime) + 'Z');
-    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
+    const s = uaLocalToUTC(startDate, startTime);
+    const e = uaLocalToUTC(endDate, endTime);
     if (s <= new Date()) return false;
     if (e <= s) return false;
     if (MODE === 'hour' && (e - s) < 3_600_000) return false;
@@ -557,8 +565,8 @@
     if (!endDate) {
       btn.textContent = 'Оберіть дату завершення'; btn.disabled = true; return;
     }
-    const s = new Date(dateISO(startDate, startTime) + 'Z');
-    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
+    const s = uaLocalToUTC(startDate, startTime);
+    const e = uaLocalToUTC(endDate, endTime);
     if (s <= new Date()) {
       btn.textContent = 'Початок у минулому ⚠️'; btn.disabled = true;
     } else if (e <= s) {
