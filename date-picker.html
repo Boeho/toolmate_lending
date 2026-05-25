@@ -434,20 +434,22 @@
     const { dayStart, dayEnd } = _dayBounds(d);
 
     if (MODE === 'day') {
-      // Check 48 h window: is there a free 24 h slot that starts within this day?
-      const windowEnd = new Date(dayStart.getTime() + 48 * 3_600_000);
-      const overlapping = BOOKED_BUFFERED.filter(b => b.s < windowEnd && b.e > dayStart);
+      // Only starts in [08:00, 20:00] are valid; rental is 24 h → scan [08:00 D, 20:00 D+1]
+      const winStart     = uaLocalToUTC(d, '08:00');
+      const latestStart  = uaLocalToUTC(d, '20:00');
+      const winEnd       = new Date(latestStart.getTime() + 86_400_000);
+      const overlapping  = BOOKED_BUFFERED.filter(b => b.s < winEnd && b.e > winStart);
       if (!overlapping.length) return 'free';
       const merged = _mergeIntervals(
-        overlapping.map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), windowEnd.getTime())])
+        overlapping.map(b => [Math.max(b.s.getTime(), winStart.getTime()), Math.min(b.e.getTime(), winEnd.getTime())])
       );
-      const dayEndMs = dayEnd.getTime();
-      let cursor = dayStart.getTime();
+      const latestStartMs = latestStart.getTime();
+      let cursor = winStart.getTime();
       for (const [s, e] of merged) {
-        if (cursor < dayEndMs && s - cursor >= 86_400_000) return 'partial';
+        if (cursor <= latestStartMs && s - cursor >= 86_400_000) return 'partial';
         cursor = Math.max(cursor, e);
       }
-      if (cursor < dayEndMs && windowEnd.getTime() - cursor >= 86_400_000) return 'partial';
+      if (cursor <= latestStartMs && winEnd.getTime() - cursor >= 86_400_000) return 'partial';
       return 'full';
     }
 
@@ -510,7 +512,8 @@
       const el = document.createElement('div');
       el.className = 'cal-cell';
       el.textContent = day;
-      const past      = isBefore(d, TODAY);
+      const past      = isBefore(d, TODAY) ||
+                        (MODE === 'day' && sameDay(d, TODAY) && kyivHHMM(new Date()) >= '20:00');
       const tooEarly  = step === 'end' && startDate && (MODE === 'day' ? (isBefore(d, startDate) || sameDay(d, startDate)) : isBefore(d, startDate));
       const bookSt    = getDayBookingStatus(d);
       if (past || tooEarly) {
@@ -586,7 +589,13 @@
   }
 
   function onTime() {
-    const v = document.getElementById('timeInput').value;
+    const inp = document.getElementById('timeInput');
+    let v = inp.value;
+    if (MODE === 'day' && step === 'start') {
+      if (v < '08:00') v = '08:00';
+      else if (v > '20:00') v = '20:00';
+      inp.value = v;
+    }
     if (step === 'start') { startTime = v; if (MODE === 'day') endTime = v; } else endTime = v;
     const activeDate = step === 'start' ? startDate : endDate;
     if (activeDate && BOOKED_BUFFERED.length) {
@@ -645,12 +654,17 @@
 
   /* ── Validation ── */
   function _startInPast(s) {
-    // Day mode: check date only (today is always a valid start date)
-    return MODE === 'day' ? isBefore(startDate, TODAY) : s <= new Date();
+    if (MODE === 'day') {
+      if (isBefore(startDate, TODAY)) return true;
+      if (sameDay(startDate, TODAY)) return s <= new Date();
+      return false;
+    }
+    return s <= new Date();
   }
 
   function isValid() {
     if (!startDate || !endDate) return false;
+    if (MODE === 'day' && (startTime < '08:00' || startTime > '20:00')) return false;
     const s = uaLocalToUTC(startDate, startTime), e = uaLocalToUTC(endDate, endTime);
     if (_startInPast(s)) return false;
     if (e <= s) return false;
@@ -668,6 +682,9 @@
 
     const s = uaLocalToUTC(startDate, startTime), e = uaLocalToUTC(endDate, endTime);
 
+    if (MODE === 'day' && (startTime < '08:00' || startTime > '20:00')) {
+      btn.textContent = '⚠️ Час початку має бути 08:00–20:00'; btn.disabled = true; return;
+    }
     if (_startInPast(s)) {
       if (MODE === 'day') {
         btn.textContent = '⚠️ Дата початку в минулому'; btn.disabled = true; return;
