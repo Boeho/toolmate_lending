@@ -752,7 +752,34 @@
     } else if (MODE === 'day' && (sameDay(endDate, startDate) || isBefore(endDate, startDate))) {
       btn.textContent = 'Мінімум 1 день ⚠️'; btn.disabled = true;
     } else if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) {
-      btn.textContent = 'Перетин з бронюванням ⚠️'; btn.disabled = true;
+      const s2 = uaLocalToUTC(startDate, startTime);
+      const e2 = uaLocalToUTC(endDate, endTime);
+      const conflict = BOOKED.find(b => b.s < e2 && b.e > s2);
+      const toKyiv = d => {
+        try {
+          const f = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+          if (/^\d{2}:\d{2}/.test(f)) return f.slice(0, 5);
+        } catch (_) {}
+        const off = _kyivOffset(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+        const loc = new Date(d.getTime() + off * 3600000);
+        return String(loc.getUTCHours()).padStart(2,'0') + ':' + String(loc.getUTCMinutes()).padStart(2,'0');
+      };
+      const toDate = d => {
+        const loc = new Date(d.getTime() + _kyivOffset(new Date(d.getFullYear(), d.getMonth(), d.getDate())) * 3600000);
+        return String(loc.getUTCDate()).padStart(2,'0') + '.' + String(loc.getUTCMonth()+1).padStart(2,'0');
+      };
+      if (conflict) {
+        if (conflict.s <= s2) {
+          btn.textContent = `⚠️ Початок зайнятий — змініть на після ${toKyiv(conflict.e)} (${toDate(conflict.e)})`;
+        } else if (conflict.e >= e2) {
+          btn.textContent = `⚠️ Кінець зайнятий — змініть на до ${toKyiv(conflict.s)} (${toDate(conflict.s)})`;
+        } else {
+          btn.textContent = `⚠️ Бронювання ${toKyiv(conflict.s)}–${toKyiv(conflict.e)} (${toDate(conflict.s)}) — змініть кінець`;
+        }
+      } else {
+        btn.textContent = '⚠️ Перетин з бронюванням';
+      }
+      btn.disabled = true;
     } else {
       btn.textContent = 'Підтвердити →'; btn.disabled = false;
     }
