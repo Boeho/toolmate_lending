@@ -149,6 +149,12 @@
       border: 1px solid var(--booked-dot);
       flex-shrink: 0;
     }
+    .legend-dot-partial {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--booked-dot);
+      flex-shrink: 0;
+    }
 
     /* ── Time picker ── */
     .time-block {
@@ -242,7 +248,11 @@
 
 <div class="legend" id="legend" style="display:none">
   <div class="legend-dot"></div>
-  <span>— заброньовано, недоступно</span>
+  <span>— день повністю зайнятий</span>
+</div>
+<div class="legend" id="legendPartial" style="display:none">
+  <div class="legend-dot-partial"></div>
+  <span>— є часткове бронювання, обери вільний час</span>
 </div>
 
 <div class="time-block">
@@ -302,7 +312,10 @@
     } catch { return []; }
   })();
 
-  if (BOOKED.length) document.getElementById('legend').style.display = 'flex';
+  if (BOOKED.length) {
+    document.getElementById('legend').style.display = 'flex';
+    document.getElementById('legendPartial').style.display = 'flex';
+  }
 
   /* ── State ── */
   const TODAY = new Date(); TODAY.setHours(0,0,0,0);
@@ -324,11 +337,27 @@
   const DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
 
   /* ── Booking helpers ── */
-  function dayOverlapsBooking(d) {
-    // does any booking touch this calendar day?
-    const dayStart = new Date(d); dayStart.setHours(0,  0,  0,   0);
-    const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
-    return BOOKED.some(b => b.s < dayEnd && b.e > dayStart);
+  function getDayBookingStatus(d) {
+    // Returns 'free', 'partial', or 'full'
+    const dayStart = uaLocalToUTC(d, '00:00');
+    const nextDay  = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const dayEnd   = uaLocalToUTC(nextDay, '00:00');
+
+    const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
+    if (overlapping.length === 0) return 'free';
+
+    // Clamp each booking to this day's range, sort by start
+    const clamped = overlapping
+      .map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
+      .sort((a, b) => a[0] - b[0]);
+
+    // Walk the merged intervals; any gap means 'partial'
+    let reached = dayStart.getTime();
+    for (const [s, e] of clamped) {
+      if (s > reached) return 'partial';
+      reached = Math.max(reached, e);
+    }
+    return reached >= dayEnd.getTime() ? 'full' : 'partial';
   }
 
   function rangeOverlapsBooking(sd, st, ed, et) {
@@ -410,18 +439,17 @@
       el.className = 'cal-cell';
       el.textContent = day;
 
-      const past      = isBefore(d, TODAY);
-      const tooEarly  = step === 'end' && startDate && (
+      const past       = isBefore(d, TODAY);
+      const tooEarly   = step === 'end' && startDate && (
         MODE === 'day'
           ? (isBefore(d, startDate) || sameDay(d, startDate))
           : isBefore(d, startDate)
       );
-      const isBooked  = dayOverlapsBooking(d);
+      const bookStatus = getDayBookingStatus(d);
 
       if (past || tooEarly) {
         el.classList.add('disabled');
-      } else if (isBooked) {
-        // blocked: visually crossed-out, not selectable
+      } else if (bookStatus === 'full') {
         el.classList.add('booked');
       } else {
         const isSelS = sameDay(d, startDate);
@@ -441,6 +469,8 @@
           el.classList.add('in-range');
         } else if (isTod) {
           el.classList.add('today');
+        } else if (bookStatus === 'partial') {
+          el.classList.add('booked-hint');
         }
 
         el.addEventListener('click', () => pickDay(d));
