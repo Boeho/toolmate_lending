@@ -403,7 +403,11 @@
       el.textContent = day;
 
       const past      = isBefore(d, TODAY);
-      const tooEarly  = step === 'end' && startDate && isBefore(d, startDate);
+      const tooEarly  = step === 'end' && startDate && (
+        MODE === 'day'
+          ? (isBefore(d, startDate) || sameDay(d, startDate))
+          : isBefore(d, startDate)
+      );
       const isBooked  = dayOverlapsBooking(d);
 
       if (past || tooEarly) {
@@ -537,23 +541,36 @@
     if (!startDate || !endDate) return false;
     const s = new Date(dateISO(startDate, startTime) + 'Z');
     const e = new Date(dateISO(endDate,   endTime)   + 'Z');
-    return s > new Date() && e > s;
+    if (s <= new Date()) return false;
+    if (e <= s) return false;
+    if (MODE === 'hour' && (e - s) < 3_600_000) return false;
+    if (MODE === 'day'  && (sameDay(endDate, startDate) || isBefore(endDate, startDate))) return false;
+    if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) return false;
+    return true;
   }
 
   function updateBtn() {
     const btn = document.getElementById('confirmBtn');
     if (!startDate) {
-      btn.textContent = 'Оберіть дату початку';
-      btn.disabled = true;
-    } else if (!endDate) {
-      btn.textContent = 'Оберіть дату завершення';
-      btn.disabled = true;
-    } else if (!isValid()) {
-      btn.textContent = 'Перевірте дати ⚠️';
-      btn.disabled = true;
+      btn.textContent = 'Оберіть дату початку'; btn.disabled = true; return;
+    }
+    if (!endDate) {
+      btn.textContent = 'Оберіть дату завершення'; btn.disabled = true; return;
+    }
+    const s = new Date(dateISO(startDate, startTime) + 'Z');
+    const e = new Date(dateISO(endDate,   endTime)   + 'Z');
+    if (s <= new Date()) {
+      btn.textContent = 'Початок у минулому ⚠️'; btn.disabled = true;
+    } else if (e <= s) {
+      btn.textContent = 'Кінець раніше початку ⚠️'; btn.disabled = true;
+    } else if (MODE === 'hour' && (e - s) < 3_600_000) {
+      btn.textContent = 'Мінімум 1 година ⚠️'; btn.disabled = true;
+    } else if (MODE === 'day' && (sameDay(endDate, startDate) || isBefore(endDate, startDate))) {
+      btn.textContent = 'Мінімум 1 день ⚠️'; btn.disabled = true;
+    } else if (rangeOverlapsBooking(startDate, startTime, endDate, endTime)) {
+      btn.textContent = 'Перетин з бронюванням ⚠️'; btn.disabled = true;
     } else {
-      btn.textContent = 'Підтвердити →';
-      btn.disabled = false;
+      btn.textContent = 'Підтвердити →'; btn.disabled = false;
     }
   }
 
