@@ -380,10 +380,9 @@
     if (overlapping.length === 0) return [];
 
     function utcToKyivHHMM(utcDate) {
-      const parts = new Intl.DateTimeFormat('en-US', {
+      return utcDate.toLocaleTimeString('en-GB', {
         timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
-      }).formatToParts(utcDate);
-      return parts.find(p => p.type === 'hour').value + ':' + parts.find(p => p.type === 'minute').value;
+      });
     }
 
     const clamped = overlapping
@@ -409,7 +408,9 @@
     if (!d || !BOOKED.length) { el.style.display = 'none'; return; }
     const intervals = getBookedIntervalsForDay(d);
     if (!intervals.length) { el.style.display = 'none'; return; }
-    el.textContent = '⛔ Зайнятий час: ' + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    el.textContent = `⛔ Зайнятий час (${dd}.${mm}): ` + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
     el.style.display = 'block';
   }
 
@@ -565,7 +566,7 @@
     } else {
       inp.value = endTime;
       lbl.textContent = '⏰ Час завершення (Київ)';
-      renderBlockedHoursForDay(endDate);
+      renderBlockedHoursForDay(endDate || startDate);
     }
 
     renderCal();
@@ -603,7 +604,7 @@
 
     const price = calcPrice();
     const priceRow = document.getElementById('priceRow');
-    if (price) {
+    if (price && Number.isFinite(price.total)) {
       document.getElementById('sumPrice').textContent =
         `${price.total.toFixed(2)}₴`;
       document.getElementById('priceDetail').textContent =
