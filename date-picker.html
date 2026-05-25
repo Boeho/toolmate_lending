@@ -63,6 +63,7 @@
       box-shadow: 0 1px 4px rgba(0,0,0,.10);
     }
     .step-pill.done { color: var(--accent); }
+    .step-pill:disabled { opacity: .35; cursor: not-allowed; }
 
     /* ── Calendar ── */
     .cal-wrap { padding: 0 16px; }
@@ -420,15 +421,28 @@
     const { dayStart, dayEnd } = _dayBounds(d);
     const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
     if (!overlapping.length) return 'free';
+
+    // Merge clamped bookings
     const clamped = overlapping
       .map(b => [Math.max(b.s.getTime(), dayStart.getTime()), Math.min(b.e.getTime(), dayEnd.getTime())])
       .sort((a, b) => a[0] - b[0]);
-    let reached = dayStart.getTime();
+    const merged = [];
     for (const [s, e] of clamped) {
-      if (s > reached) return 'partial';
-      reached = Math.max(reached, e);
+      if (!merged.length || s > merged[merged.length - 1][1]) merged.push([s, e]);
+      else merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
     }
-    return reached >= dayEnd.getTime() ? 'full' : 'partial';
+
+    // Compute longest contiguous free slot
+    let maxFreeMs = 0, cursor = dayStart.getTime();
+    for (const [s, e] of merged) {
+      if (s > cursor) maxFreeMs = Math.max(maxFreeMs, s - cursor);
+      cursor = Math.max(cursor, e);
+    }
+    maxFreeMs = Math.max(maxFreeMs, dayEnd.getTime() - cursor);
+
+    // Threshold: 2 h for hourly mode, 6 h for daily mode
+    const minFreeMs = (MODE === 'day' ? 6 : 2) * 3_600_000;
+    return maxFreeMs < minFreeMs ? 'full' : 'partial';
   }
 
   function getBookedIntervalsForDay(d) {
@@ -527,6 +541,7 @@
   }
 
   function goStep(s) {
+    if (s === 'end' && !startDate) return;
     step = s;
     document.getElementById('pillStart').className = 'step-pill' + (s === 'start' ? ' active' : startDate ? ' done' : '');
     document.getElementById('pillEnd').className   = 'step-pill' + (s === 'end'   ? ' active' : endDate   ? ' done' : '');
@@ -621,6 +636,7 @@
 
   function updateBtn() {
     const btn = document.getElementById('confirmBtn');
+    document.getElementById('pillEnd').disabled = !startDate;
     if (!startDate) { btn.textContent = 'Оберіть дату початку';    btn.disabled = true; return; }
     if (!endDate)   { btn.textContent = 'Оберіть дату завершення'; btn.disabled = true; return; }
 
