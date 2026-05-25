@@ -174,6 +174,17 @@
     }
     .time-input::-webkit-calendar-picker-indicator { filter: invert(50%); cursor: pointer; }
 
+    .blocked-hours-info {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--booked-dot);
+      background: var(--booked-bg);
+      border-radius: 8px;
+      padding: 6px 8px;
+      line-height: 1.4;
+      display: none;
+    }
+
     /* ── Summary card ── */
     .summary {
       margin: 12px 16px 0; padding: 12px 14px;
@@ -258,6 +269,7 @@
 <div class="time-block">
   <label id="timeLbl">⏰ Час початку (Київ)</label>
   <input type="time" class="time-input" id="timeInput" value="09:00" onchange="onTime()">
+  <div class="blocked-hours-info" id="blockedHoursInfo"></div>
 </div>
 
 <div class="summary">
@@ -294,8 +306,8 @@
   const qp        = new URLSearchParams(location.search);
   const MODE      = qp.get('mode') || 'hour';
   const TOOL_ID   = qp.get('tool_id') || null;
-  const PRICE_H   = qp.get('ph')  !== null ? parseFloat(qp.get('ph'))  : null;
-  const PRICE_D   = qp.get('pd')  !== null ? parseFloat(qp.get('pd'))  : null;
+  const PRICE_H   = (() => { const v = parseFloat(qp.get('ph'));  return isNaN(v) ? null : v; })();
+  const PRICE_D   = (() => { const v = parseFloat(qp.get('pd'));  return isNaN(v) ? null : v; })();
 
   document.getElementById('modeBadge').textContent =
     MODE === 'day' ? 'Подобова' : 'Погодинна';
@@ -358,6 +370,47 @@
       reached = Math.max(reached, e);
     }
     return reached >= dayEnd.getTime() ? 'full' : 'partial';
+  }
+
+  function getBookedIntervalsForDay(d) {
+    const dayStart = uaLocalToUTC(d, '00:00');
+    const nextDay  = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const dayEnd   = uaLocalToUTC(nextDay, '00:00');
+    const overlapping = BOOKED.filter(b => b.s < dayEnd && b.e > dayStart);
+    if (overlapping.length === 0) return [];
+
+    function utcToKyivHHMM(utcDate) {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(utcDate);
+      return parts.find(p => p.type === 'hour').value + ':' + parts.find(p => p.type === 'minute').value;
+    }
+
+    const clamped = overlapping
+      .map(b => ({
+        s: new Date(Math.max(b.s.getTime(), dayStart.getTime())),
+        e: new Date(Math.min(b.e.getTime(), dayEnd.getTime())),
+      }))
+      .sort((a, b) => a.s - b.s);
+
+    const merged = [];
+    for (const iv of clamped) {
+      if (!merged.length || iv.s > merged[merged.length - 1].e) {
+        merged.push({ s: new Date(iv.s), e: new Date(iv.e) });
+      } else {
+        merged[merged.length - 1].e = new Date(Math.max(merged[merged.length - 1].e.getTime(), iv.e.getTime()));
+      }
+    }
+    return merged.map(iv => ({ start: utcToKyivHHMM(iv.s), end: utcToKyivHHMM(iv.e) }));
+  }
+
+  function renderBlockedHoursForDay(d) {
+    const el = document.getElementById('blockedHoursInfo');
+    if (!d || !BOOKED.length) { el.style.display = 'none'; return; }
+    const intervals = getBookedIntervalsForDay(d);
+    if (!intervals.length) { el.style.display = 'none'; return; }
+    el.textContent = '⛔ Зайнятий час: ' + intervals.map(iv => iv.start + '–' + iv.end).join(', ');
+    el.style.display = 'block';
   }
 
   function rangeOverlapsBooking(sd, st, ed, et) {
@@ -484,10 +537,12 @@
   function pickDay(d) {
     if (step === 'start') {
       startDate = new Date(d);
-      endDate = null; // reset end when start changes
+      endDate = null;
+      renderBlockedHoursForDay(startDate);
       setTimeout(() => goStep('end'), 180);
     } else {
       endDate = new Date(d);
+      renderBlockedHoursForDay(endDate);
     }
     renderCal();
     renderSummary();
@@ -506,9 +561,11 @@
     if (s === 'start') {
       inp.value = startTime;
       lbl.textContent = '⏰ Час початку (Київ)';
+      renderBlockedHoursForDay(startDate);
     } else {
       inp.value = endTime;
       lbl.textContent = '⏰ Час завершення (Київ)';
+      renderBlockedHoursForDay(endDate);
     }
 
     renderCal();
