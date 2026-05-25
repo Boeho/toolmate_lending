@@ -389,9 +389,15 @@
     if (overlapping.length === 0) return [];
 
     function utcToKyivHHMM(utcDate) {
-      return utcDate.toLocaleTimeString('en-GB', {
-        timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
-      });
+      try {
+        const s = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Kiev', hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(utcDate);
+        if (/^\d{2}:\d{2}/.test(s)) return s.slice(0, 5);
+      } catch (_) {}
+      // Fallback: manual offset calculation
+      const local = new Date(utcDate.getTime() + _kyivOffset(new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate())) * 3600000);
+      return String(local.getUTCHours()).padStart(2, '0') + ':' + String(local.getUTCMinutes()).padStart(2, '0');
     }
 
     const clamped = overlapping
@@ -455,12 +461,23 @@
     return a < b;
   }
 
+  /* Kyiv DST helper — EU rules: last-Sunday-March → last-Sunday-October */
+  function _kyivOffset(d) {
+    const lastSun = (yr, mo) => { const x = new Date(yr, mo, 31); x.setDate(31 - x.getDay()); return x; };
+    return (d >= lastSun(d.getFullYear(), 2) && d < lastSun(d.getFullYear(), 9)) ? 3 : 2;
+  }
+
   function uaLocalToUTC(d, t) {
-    // Convert a calendar date + "HH:MM" Kyiv local time to a UTC Date
-    const probeUTC = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), ...t.split(':').map(Number)));
-    const uaRepr   = new Date(probeUTC.toLocaleString('en-US', { timeZone: 'Europe/Kiev' }));
-    const target   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), ...t.split(':').map(Number));
-    return new Date(probeUTC.getTime() + target - uaRepr);
+    const [hh, mm] = t.split(':').map(Number);
+    try {
+      const probeUTC = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm));
+      const uaRepr   = new Date(probeUTC.toLocaleString('en-US', { timeZone: 'Europe/Kiev' }));
+      const target   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm);
+      const result   = new Date(probeUTC.getTime() + target.getTime() - uaRepr.getTime());
+      if (!isNaN(result.getTime())) return result;
+    } catch (_) {}
+    // Fallback: hardcoded Kyiv DST (UTC+3 summer, UTC+2 winter)
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), hh - _kyivOffset(d), mm));
   }
 
   function inSelRange(d) {
@@ -543,15 +560,33 @@
     }
   }
 
+  function showBookedPopup(d, intervals) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const title = `⛔ Зайнятий час ${dd}.${mm}`;
+    const msg   = intervals.map(iv => iv.start + '–' + iv.end).join('\n');
+    if (tg && tg.showPopup) {
+      tg.showPopup({ title, message: msg, buttons: [{ type: 'ok' }] }).catch(() => {});
+    } else if (tg && tg.showAlert) {
+      tg.showAlert(title + ':\n' + msg);
+    } else {
+      alert(title + ':\n' + msg);
+    }
+  }
+
   /* ── Interactions ── */
   function pickDay(d) {
     if (step === 'start') {
       startDate = new Date(d);
       endDate = null;
+      const iv = getBookedIntervalsForDay(d);
+      if (iv.length) showBookedPopup(d, iv);
       renderBlockedHoursForDay(startDate);
       setTimeout(() => goStep('end'), 180);
     } else {
       endDate = new Date(d);
+      const iv = getBookedIntervalsForDay(d);
+      if (iv.length) showBookedPopup(d, iv);
       renderBlockedHoursForDay(endDate);
     }
     renderCal();
