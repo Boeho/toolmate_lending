@@ -138,6 +138,7 @@
 
   <footer>
     &copy; 2025 Toolmate. Розроблено для людей. Made in Ukraine.
+    <div id="visitor-counter" class="visitor-counter"></div>
   </footer>
 
   <script>
@@ -171,6 +172,45 @@
 
     setInterval(updateCountdown, 1000);
     updateCountdown();
+  </script>
+
+  <script>
+    (function () {
+      const STATS_API = 'https://toolmate-bot-production.up.railway.app/stats';
+      const counterEl = document.getElementById('visitor-counter');
+
+      function getVisitorId() {
+        let vid = localStorage.getItem('tm_vid');
+        if (!vid) {
+          vid = crypto.randomUUID();
+          localStorage.setItem('tm_vid', vid);
+        }
+        return vid;
+      }
+
+      function renderCount(count) {
+        if (counterEl) {
+          counterEl.textContent = `👀 Відвідувачів сайту: ${count}`;
+        }
+      }
+
+      const vid = getVisitorId();
+      const isNewVisitor = !sessionStorage.getItem('tm_visit_sent');
+
+      const registerVisit = isNewVisitor
+        ? fetch(`${STATS_API}/visit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vid }),
+          }).then(() => sessionStorage.setItem('tm_visit_sent', '1')).catch(() => {})
+        : Promise.resolve();
+
+      registerVisit
+        .then(() => fetch(`${STATS_API}/visitors`))
+        .then((res) => res.json())
+        .then((data) => renderCount(data.unique_visitors))
+        .catch(() => {});
+    })();
   </script>
 </body>
 </html>
